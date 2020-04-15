@@ -33,6 +33,30 @@ def recommendations_for_user(user_id, threshold=4.5):
 # Try the function you created
 print(recommendations_for_user(12, 4.65))
 
+## CLASSES AND INHERITANCE ######################
+## Inheritance in Python
+from .parent_class import parent_class
+
+class ChildClass(ParentClass):
+	def __init__(self):
+		# Call parent's init method
+		ParentClass.__init__(self) 
+
+##
+class SocialMedia(Document):
+    def __init__(self, text):
+        Document.__init__(self, text)
+        self.hashtag_counts = self._count_hashtags()
+        self.mention_counts = self._count_mentions()
+
+    def _count_hashtags(self):
+        # Filter attribute so only words starting with '#' remain
+        return filter_word_counts(self.word_counts, first_char='#')      
+
+    def _count_mentions(self):
+        # Filter attribute so only words starting with '@' remain
+        return filter_word_counts(self.word_counts, first_char='@')
+
 ## READING IN CSV FILES #####################
 # Import pandas as pd
 import pandas as pd
@@ -196,5 +220,79 @@ flat_cafes = json_normalize(data["businesses"],
 # View the data
 print(flat_cafes.head())
 
-#### SOFTWARE ENGINEERING ###########################
+#### EFFICIENT CODE ###########################
 ## MODULAR CODE
+## MINIMAL MEMORY OVERHEAD, MINIMAL EXECUTION TIME
+# Create a range object that goes from 0 to 5
+nums = range(0, 6)
+print(type(nums))
+
+# Convert nums to a list
+nums_list = list(nums)
+print(nums_list)
+
+# Create a new list of odd numbers from 1 to 11 by unpacking a range object
+nums_list2 = [*range(1,12, 2)]
+print(nums_list2)
+
+## ENUMERATE
+# Rewrite the for loop to use enumerate
+indexed_names = []
+for i,name in enumerate(names):
+    index_name = (i,name)
+    indexed_names.append(index_name) 
+print(indexed_names)
+
+# Rewrite the above for loop using list comprehension
+indexed_names_comp = [(i,name) for i,name in enumerate(names)]
+print(indexed_names_comp)
+
+# Unpack an enumerate object with a starting index of one
+indexed_names_unpack = [*enumerate(names, start = 1)]
+print(indexed_names_unpack)
+
+## NUMPY arrays, fast and memory-lite alternative to lists
+## homogenous
+import numpy as np
+
+num = np.array([1, 2, 3])
+num.dtype
+
+## regular lists don't support broadcasting
+nums ** 2 #doesn't work
+
+## numpy does: vectorized operations
+
+## SYNTAX list
+nums2 = ([1, 2, 3],
+		 [4, 5, 6])
+
+nums2[0][1] #turns 2
+[row[0] for row in nums2] #returns first col
+
+nums2_np = np.array(nums2)
+nums2_np[0, 1] #returns 2
+nums2_np[:, 0] #returns first col
+
+## ALSO ALLOWS FOR BOOLEAN INDEXING
+
+### RUNTIME #################
+#using %timeit (magic commands)
+
+import numpy as np
+rand_nums = np.random.rand(1000)
+%timeit rand_nums = np.random.rand(1000)
+#returns mean & std dev of time
+
+## can set number of runs with -r, and loops with -n
+%timeit -r2 -n10 rand_nums = np.random.rand(1000)
+
+#can run on multiple lines of code, if %%timeit is used
+#output can be saved with -o
+
+f_time = %timeit -o formal_dict = dict()
+l_time = %timeit -o literal_dict = {}
+
+#timing unpacking range vs list comprehension
+%timeit [*range(50)]
+%timeit [n for n in range(50)]
