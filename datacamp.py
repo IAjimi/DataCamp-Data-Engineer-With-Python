@@ -296,3 +296,75 @@ l_time = %timeit -o literal_dict = {}
 #timing unpacking range vs list comprehension
 %timeit [*range(50)]
 %timeit [n for n in range(50)]
+
+## LINE PROFILING
+# detailed stats on frequency and duration of fct calls
+# line-by-line analyses
+# package: line_profiler, pip install line_profiler
+
+%load_ext line_profiler
+%lprun -f convert_units convert_units(a, b, c) 
+#line-by-life, -f says want to profile function
+
+# reports different stats from timeit
+
+## CODE PROFILING: memory
+#memory_profiler, mprun -> function must be imported in a file
+# place function in sample_funcs.py then
+from sample_funcs import convert_units
+%load_ext memory_profiler
+%mprun -f convert_units convert_units(a, b, c)
+# mem usage shows new memory usage
+# increment shows impact on total memory used
+# need to use enough memory otherwise doesn't show up
+# %mprun inspects memory by querying the os -> results may differ based on run
+
+
+## COMBINING OBJECTS
+names = ['a', 'b', 'c']
+hps = [1, 2, 3]
+
+combined_ = zip(names, hps)
+print(combined_) #tuple of elements from OG list
+
+# Counter object
+## can count with a loop or Counter from collections (faster)
+from collections import Counter
+type_counts = Counter(poke_types)
+print(type_counts)
+
+# itertools -> product, permutations, combinations (also faster)
+from itertools import combinations
+combos_obj = combinations(poke_types, 2) #2 is length of combinations
+combos = [*combos_obj]
+print(combos)
+
+## SET THEORY
+# sets, intersection(), difference(), symmetric_difference(), unions()
+# membership testing is faster -> 'a' in set(['a', 'b', 'c'])
+# also note that set(['a', 'a', 'b']) only returns unique objects
+
+## REPLACING FOR LOOPS
+# For Loop
+gen1_gen2_name_lengths_loop = []
+
+for name,gen in zip(poke_names, poke_gens):
+    if gen < 3:
+        name_length = len(name)
+        poke_tuple = (name, name_length)
+        gen1_gen2_name_lengths_loop.append(poke_tuple)
+
+# Not a for loop
+[(name, len(name)) for name,gen in zip(poke_names, poke_gens) if gen < 3]
+
+## WRITING BETTER LOOPS
+#for ix, row in dataframe.iterrows()
+# itertuples -> can access attributes with ., NOT []
+# itertuples is faster bc iterrows return pandas series
+#using apply instead, index 0 for columns, 1 for rows
+baseball_df.apply(lambda x: calc_run_diff(x['RS'], x['RD']),
+	axis = 1)
+
+baseball_df['W'].values #is a numpy array
+# which means they can be broadcast / vectorized
+run_diffs_np = baseball_df['RS'].values - baseball_df['RD'].values
