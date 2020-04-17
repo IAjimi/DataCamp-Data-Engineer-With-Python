@@ -368,3 +368,15 @@ baseball_df.apply(lambda x: calc_run_diff(x['RS'], x['RD']),
 baseball_df['W'].values #is a numpy array
 # which means they can be broadcast / vectorized
 run_diffs_np = baseball_df['RS'].values - baseball_df['RD'].values
+
+
+### INTRODUCTION TO SHELL ##################33
+# pwd : working directory
+# ls : lists files in directory
+# /home/repl : absolute path (starts with /), repl : relative path
+# cd: change directory
+# ..: go backwards (from home/repl/seasonal to home/repl) 
+# .: current directory (no difference between ls and ls .)
+# ~ : home directory
+# cp: copy (cp original.txt duplicate.txt creates copy of original called duplicate)
+## if last parameter of cp is a directory, copies all files to directory
