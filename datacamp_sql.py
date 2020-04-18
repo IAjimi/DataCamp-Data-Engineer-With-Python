@@ -417,3 +417,210 @@ FROM bins
 GROUP BY lower, upper
 ORDER BY lower;
 
+## ANOTHER ONE
+#-- Bins created in Step 2
+WITH bins AS (
+      SELECT generate_series(2200, 3050, 50) AS lower,
+             generate_series(2250, 3100, 50) AS upper),
+     -- Subset stackoverflow to just tag dropbox (Step 1)
+     dropbox AS (
+      SELECT question_count 
+        FROM stackoverflow
+       WHERE tag='dropbox') 
+#-- Select columns for result
+#-- What column are you counting to summarize?
+SELECT lower, upper, count(question_count) 
+  FROM bins  #-- Created above
+       #-- Join to dropbox (created above), 
+       #-- keeping all rows from the bins table in the join
+       LEFT JOIN dropbox
+       #-- Compare question_count to lower and upper
+         ON question_count >= lower 
+        AND question_count < upper
+ #-- Group by lower and upper to count values in each bin
+ GROUP BY lower, upper
+ #-- Order by lower to put bins in order
+ ORDER BY lower;
+
+## PERCENTILE FUNCTION
+SELECT percentile_disc(0.5) WITHIN GROUP (ORDER BY column_name)
+FROM table;
+
+### CREATING TEMPORARY TABLE ###########
+CREATE TEMP TABLE top_companies AS 
+	SELECT rank, title
+	FROM fortune500
+	WHERE rank < 10;
+# other syntax is SELECT INTO
+
+## can add rows 
+INSERT INTO top_companies
+SELECT rank, title
+	FROM fortune500
+	WHERE rank BETWEEN 11 AND 20;
+
+## drop table (will also be )
+DROP TABLE top_companies;
+#or 
+DROP TABLE IF EXISTS top_companies;
+
+### EXERCISE
+DROP TABLE IF EXISTS profit80;
+
+CREATE TEMP TABLE profit80 AS
+  SELECT sector, 
+         percentile_disc(0.8) WITHIN GROUP (ORDER BY profits) AS pct80
+    FROM fortune500 
+   GROUP BY sector;
+
+SELECT fortune500.title, 
+       fortune500.sector, 
+       fortune500.profits,
+       fortune500.profits / profit80.pct80 AS ratio
+FROM profit80
+LEFT JOIN fortune500
+ON fortune500.sector = profit80.sector
+WHERE fortune500.profits > profit80.pct80;
+
+## 
+#-- Select tag (Remember the table name!) and mindate
+SELECT startdates.tag, 
+       startdates.mindate, 
+       #-- Select question count on the min and max days
+	   so_min.question_count AS min_date_question_count,
+       so_max.question_count AS max_date_question_count,
+       #-- Compute the change in question_count (max- min)
+       so_min.question_count - so_max.question_count AS change
+  FROM startdates
+       #-- Join startdates to stackoverflow with alias so_min
+       INNER JOIN stackoverflow AS so_min
+          ON startdates.tag = so_min.tag
+         AND startdates.mindate = so_min.date
+       #-- Join to stackoverflow again with alias so_max
+       INNER JOIN stackoverflow AS so_max
+          ON startdates.tag = so_max.tag
+         AND so_max.date = '2018-09-25';
+
+## CREATING CORRELATIONS
+DROP TABLE IF EXISTS correlations;
+
+CREATE TEMP TABLE correlations AS
+SELECT 'profits'::varchar AS measure,
+       corr(profits, profits) AS profits,
+       corr(profits, profits_change) AS profits_change,
+       corr(profits, revenues_change) AS revenues_change
+  FROM fortune500;
+
+INSERT INTO correlations
+SELECT 'profits_change'::varchar AS measure,
+       corr(profits_change, profits) AS profits,
+       corr(profits_change, profits_change) AS profits_change,
+       corr(profits_change, revenues_change) AS revenues_change
+  FROM fortune500;
+
+INSERT INTO correlations
+SELECT 'revenues_change'::varchar AS measure,
+       corr(revenues_change, profits) AS profits,
+       corr(revenues_change, profits_change) AS profits_change,
+       corr(revenues_change, revenues_change) AS revenues_change
+  FROM fortune500;
+
+-- Select each column, rounding the correlations
+SELECT measure,
+       round(profits::numeric, 2) AS profits,
+       round(profits_change::numeric, 2) AS profits_change,
+       round(revenues_change::numeric, 2) AS revenues_change
+FROM correlations;
+
+### CHARACTER DATA ####
+# char(n) -- FIXED length string, w/ trailing spaces added
+# varchar(n) -- variable length
+# text or varchar -- UNLIMITED length
+
+# categorical: Monday, Tuesday, Saturday
+# unstructured text
+
+#-- Find values of zip that appear in at least 100 rows
+#-- Also get the count of each value
+SELECT zip, count(zip)
+  FROM evanston311
+ GROUP BY zip
+HAVING count(zip) > 100; 
+
+## Case insensitive searches
+SELECT *
+FROM fruit
+WHERE fav_fruit LIKE '%apple%';
+# returns apple, ' apple', etc
+
+SELECT *
+FROM fruit
+WHERE fav_fruit ILIKE '%apple%';
+# returns apple, Apple, APPLES, etc... but also pineapple
+
+## TRIMMING SPACES
+SELECT trim(' abc ') #trims both ends -> 'abc'
+SELECT rtrim(' abc ') #trims right end -> ' abc'
+SELECT ltrim(' abc ') #trims left end -> 'abc '
+
+# can also remove specific examples
+SELECT trim('Wow!', '!') #!w
+SELECT trim('Wow!', '!wW') #o
+
+## SELECTING SUBTRINGS
+SELECT left('abcde', 2) #ab
+SELECT right('abcde', 2) #de
+SELECT substring('abcde' FROM 2 FOR 3) #bcd
+
+# SPLIT 
+SELECT split_part('a, bc, de', ',', 2) #bc, delimiter not included in returns
+
+## CONCATENATE
+SELECT concat('a', 2, 'cc') #a2cc
+SELECT 'a' || 2 || 'cc'; #a2cc
+SELECT concat('a', NULL, 'cc') #acc
+
+
+## EXAMPLE
+#-- Select the first 50 chars when length is greater than 50
+SELECT CASE WHEN length(description) > 50
+            THEN left(description, 50) || '...'
+       #-- otherwise just select description
+       ELSE description
+       END
+  FROM evanston311
+ #-- limit to descriptions that start with the word I
+ WHERE left(description, 2) LIKE '%I %'
+ ORDER BY description;
+
+ # CASE WHEN
+ # want to split "Description :", "description - " etc
+
+ SELECT CASE WHEN category LIKE '%: %' THEN split_part(category, ': ', 1)
+ 			 WHEN category LIKE '% - %' THEN split_part(category, ' - ', 1)
+ 			 ELSE split_part(category, ' | ', 1)
+ 		END AS major_category,
+ 		sum(businesses)
+ 	FROM naics
+ 	GROUP BY major_category;
+
+ ## ALTERNATIVE
+ # STEP 1: create temp table
+ CREATE TEMP TABLE recode AS
+ 	SELECT DISTINCT fav_fruit AS original,
+ 					fav_fruit AS standardized
+ 	FROM fruit;
+
+ # STEP 2: update values
+ UPDATE recode
+ 	SET standardized = trim(lower(original));
+
+ UPDATE recode
+ 	SET ...;
+
+ # STEP 3: join original and recode
+ SELECT standardized, count(*)
+ FROM fruit
+ LEFT JOIN recode
+ ON fav_fruit = original
+ GROUP BY standardized;

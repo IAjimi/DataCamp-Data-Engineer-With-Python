@@ -373,6 +373,8 @@ run_diffs_np = baseball_df['RS'].values - baseball_df['RD'].values
 ### INTRODUCTION TO SHELL ##################33
 # pwd : working directory
 # ls : lists files in directory
+## ls -R : works recursively, shows every file and directory in the current level, then everything in each sub-directory, and so on.
+## ls -F:  prints a / after the name of every directory and a * after the name of every runnable program
 # /home/repl : absolute path (starts with /), repl : relative path
 # cd: change directory
 # ..: go backwards (from home/repl/seasonal to home/repl) 
@@ -380,3 +382,40 @@ run_diffs_np = baseball_df['RS'].values - baseball_df['RD'].values
 # ~ : home directory
 # cp: copy (cp original.txt duplicate.txt creates copy of original called duplicate)
 ## if last parameter of cp is a directory, copies all files to directory
+
+cp seasonal/summer.csv seasonal/summerbackup.bck #copies file 1 as file 2 in path in file 2 name
+cp seasonal/summer.csv seasonal/spring.csv backup #copies file 1 and 2 into backup dir
+
+# mv works the same way for moving files -- can also be used to rename FILES
+# rm removes files, can add as many files as needed -- CAREFUL: deletes FOR GOOD
+
+# for directories, mv works the same way: mv seasonal by-season remanes dir seasonal to by-season
+# not rm! need to use rmdir & ONLY works if the directory is empty
+# mkdir creates new directory
+
+## MANIPULATING DATA
+# cat: shows the content of files in terminal
+# less: shows the content of files by PAGE -> :n to go to next file, :p to go to previus, :q to quit
+less seasonal/spring.csv seasonal/summer.csv #shows both files in that order
+# head: shows first lines
+head -n 3 seasonal/summer.csv #only shows first 3 lines
+
+# man: shows documentation
+man head #shows info for head
+
+# cut: select columns from file
+cut -f 2-5,8 -d , values.csv #select columns 2 through 5 and columns 8, using comma as the separator
+#-f means fields (= columns), -d is delimiter
+
+## NOTE: cut doesn't understand quoted strings
+
+# history: prints history of past commands
+## !55: re-runs 55th comman in history
+## !head: re-runs most recent used of head
+
+# grep: selects lines based on content
+## -v: lines that dont contain match
+## -n: show line number
+## -c: count of matching lines
+grep molar seasonal/autumn.csv #all occurences of molar
+grep -v -n molar seasonal/autumn.csv #all lines w/o molar, with line number
