@@ -624,3 +624,35 @@ SELECT CASE WHEN length(description) > 50
  LEFT JOIN recode
  ON fav_fruit = original
  GROUP BY standardized;
+
+ ##EXAMPLE
+DROP TABLE IF EXISTS indicators;
+
+CREATE TEMP TABLE indicators AS
+  #-- Select id
+  SELECT id, 
+         CAST (description LIKE '%@%' AS integer) AS email,
+         CAST (description LIKE '%___-___-____%' AS integer) AS phone  #_ matches any character
+    #-- What table contains the data? 
+    FROM evanston311;
+
+SELECT *
+  FROM indicators;
+
+
+## DATETIMES #########################
+SELECT now() - '2020-01-01' #now is TODAY's date, is an interval
+
+# need to CAST datetimes to date for = to work
+SELECT count(*) 
+FROM evanston311
+WHERE date_created::date = '2017-01-31';
+
+# can also cast '' to date then add numbers
+SELECT count(*)
+  FROM evanston311
+ WHERE date_created >= '2017-03-13'
+   AND date_created < '2017-03-13'::date + 1;
+
+# -- Add 100 days to the current timestamp
+SELECT now() + '100 days'::interval;

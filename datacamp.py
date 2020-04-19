@@ -419,3 +419,43 @@ cut -f 2-5,8 -d , values.csv #select columns 2 through 5 and columns 8, using co
 ## -c: count of matching lines
 grep molar seasonal/autumn.csv #all occurences of molar
 grep -v -n molar seasonal/autumn.csv #all lines w/o molar, with line number
+
+# wc: word count
+## -c: CHARACTER count
+## -w: WORD count
+## -l: LINE count
+cut -d , -f 2 seasonal/summer.csv | grep -v Tooth
+
+# using REDRECTION to save output in a file
+head -n 5 seasonal/summer.csv > top.csv
+
+# pipe:
+head -n 5 seasonal/summer.csv | tail -n 3
+# instead of
+head -n 5 seasonal/summer.csv > top.csv
+tail -n 3 top.csv
+
+## this can be extended to MULTIPLE files
+cut -d , -f 1 seasonal/winter.csv seasonal/spring.csv seasonal/summer.csv seasonal/autumn.csv
+# alternative is using a wildcard
+## *: all
+cut -d , -f 1 seasonal/* #all files in seasonal
+cut -d , -f 1 seasonal/*.csv #all csv files in seasaonl
+
+## ?: matches a single character, 201?.txt matches 2010, 2011, etc
+## [...]: matches any character within brackets -> 201[78] matches 2017 and 2018
+## {..., ...}: matches any of the patterns within {} -> {*.csv, *.txt} bring back all .csv and .txt files
+
+# sort: order data, by default in ascending alphabetical order
+## -n: sort numerically
+## -r: reverse order of output
+## -b: ignore leading blanks
+## -f: be case-insensitive
+cut -d , -f 2 seasonal/winter.csv | grep -v Tooth | sort | uniq -c # returns count of occurences of different names
+wc -l seasonal/* | grep -v total | sort -n | head -n 1 #returns the file w/ fewest lines
+
+## can play around with order
+> output.txt head -n 3 seasonal/winter.csv #saves output of head etc into output
+
+## CTRL + C :stop running program
+
