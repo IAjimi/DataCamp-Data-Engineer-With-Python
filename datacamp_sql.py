@@ -656,3 +656,307 @@ SELECT count(*)
 
 # -- Add 100 days to the current timestamp
 SELECT now() + '100 days'::interval;
+
+## EXTRACTING FIELDS
+date_part('field', timestamp)
+EXTRACT(FIELD FROM timestamp)
+
+# date trunc?
+SELECT date_trunc('month', date) AS month,
+		sum(amt) AS Total_Sales
+FROM sales
+GROUP BY month
+ORDER BY month;
+
+## CREATE SERIES OF DATES
+SELECT generate_series('2018-01-01', '2018-12-31', '1 month'::interval)
+
+# Finding missing values
+WITH hour_series AS(
+	SELECT generate_series('2018-04-23 09:00:00', '2018-04-23 14:00:00', '1 hour'::interval) AS hours)
+
+SELECT hours, count(date)
+FROM hour_series
+LEFT JOIN sales
+ON hours = date_trunc('hour', date)
+GROUP BY hours
+ORDER BY hours;
+
+# EXAMPLE
+SELECT day
+#-- 1) Subquery to generate all dates
+#-- from min to max date_created
+  FROM (SELECT generate_series(min(date_created),
+                               max(date_created),
+                               '1 day')::date AS day
+          FROM evanston311) AS all_dates
+#-- 4) Select dates (day from above) that are NOT IN the subquery
+ WHERE day NOT IN 
+       (SELECT date_created::date
+          FROM evanston311);
+
+
+############ DATA DRIVEN DECISION MAKING WITH SQL ###################################3
+#-- For each country report the earliest date when an account was created
+SELECT country,
+	min(date_account_start) AS first_account
+FROM customers
+GROUP BY country, date_account_start
+ORDER BY date_account_start;
+
+SELECT country, -- For each country report the earliest date when an account was created
+	MIN(date_account_start) AS first_account
+FROM customers
+GROUP BY country
+ORDER BY first_account;
+
+## SQL NOTE: The average is null only if all values are null.
+
+## NOTE: need to be careful & intentional about the columns returned
+# selecting renting_price w/o sum won't work bc the other columns are of length 1 
+SELECT 
+	sum(m.renting_price), 
+	count(*), 
+	count(r.customer_id)  
+FROM renting AS r
+LEFT JOIN movies AS m
+ON r.movie_id = m.movie_id;
+
+## NESTED QUERY
+# SELECT block in WHERE or HAVING -> created 1st
+## SELECT EXAMPLE
+# -- step 1: inner query
+SELECT DISTINCT customer_id
+FROM renting
+WHERE rating <= 3
+
+# -- step 2: outer query
+SELECT name
+FROM customers
+WHERE customer_id IN
+	( SELECT DISTINCT customer_id
+	FROM renting
+	WHERE rating <= 3
+	)
+
+# HAVING EXAMPLE: earliest account created
+# for countries where account was created BEFORE 1st Austrian account
+SELECT country, MIN(date_account_start)
+FROM customers
+GROUP BY country
+HAVING MIN(date_account_start) < (
+	SELECT MIN(date_account_start)
+	FROM customers
+	WHERE country = 'Austria'
+	)
+
+# PRACTICE
+## movies watched more than 5 times
+SELECT *
+FROM movies
+WHERE movie_id IN  
+	(SELECT movie_id
+	FROM renting
+	GROUP BY movie_id
+	HAVING COUNT(*) > 5)
+
+## movies with above average ratings
+SELECT movie_id,  
+       avg(rating)
+FROM renting
+GROUP BY movie_id
+HAVING avg(rating) >         
+	(SELECT AVG(rating)
+	FROM renting);
+
+## CORRELATED QUERIES
+# condition in the where clause of INNER query depends on column in outer query
+# nested query is evaluated once for every row, kind of like for loop over rows
+## replaces GROUP BY?
+
+# EXAMPLE -- Select customers with less than 5 movie rentals
+SELECT *
+FROM customers as c
+WHERE 5 >
+	(SELECT count(*)
+	FROM renting as r
+	WHERE r.customer_id = c.customer_id);
+
+## EXISTS
+# special case of a correlated nested query
+# used to check if result is empty, returns T or F
+SELECT *
+FROM movies as m
+WHERE NOT EXISTS
+ (
+	SELECT *
+	FROM renting as r
+	WHERE rating IS NOT NULL
+	AND r.movie_id = m.movie_id
+	)
+
+# Get all Actors in Comedies
+SELECT *
+FROM actors AS a
+WHERE EXISTS
+	(SELECT *
+	 FROM actsin AS ai
+	 LEFT JOIN movies AS m
+	 ON m.movie_id = ai.movie_id
+	 WHERE m.genre = 'Comedy'
+	 AND ai.actor_id = a.actor_id);
+
+## UNION, INTERSECT
+# UNION: same columns must be selected for all tables
+# INTERSECT: all values that appear in both tables
+
+## EXAMPLES 
+#-- Select all actors who are not from the USA and who are also born after 1990
+SELECT name, 
+       nationality, 
+       year_of_birth
+FROM actors
+WHERE nationality <> 'USA'
+INTERSECT 
+SELECT name, 
+       nationality, 
+       year_of_birth
+FROM actors
+WHERE year_of_birth > 1990;
+
+#-- Select all movies of genre drama with average rating higher than 9
+SELECT *
+FROM movies
+WHERE movie_id IN 
+   (SELECT movie_id
+    FROM movies
+    WHERE genre = 'Drama'
+    INTERSECT
+    SELECT movie_id
+    FROM renting
+    GROUP BY movie_id
+    HAVING AVG(rating)>9);
+
+## OLAP: On-Line Analytical Processing
+### CUBE
+ SELECT country,
+ 		genre,
+ 		COUNT(*)
+ FROM renting_extended
+ GROUP BY CUBE (country, genre); #group by each combination of country and genre, plus country and genre alone
+
+ ### ROLLUP
+ SELECT country,
+ 		genre,
+ 		count(*)
+ FROM renting_extended
+ GROUP BY ROLLUP (country, genre);
+ #aggregation of each combination of country + genre, country only, total
+ ## -> GROUP BY CUBE minus one level
+
+### GROUPING SETS
+# union over group by statements
+SELECT country,
+	   genre,
+	   count(*)
+FROM renting_extended
+GROUP BY GROUPING SETS ((country, genre), (country), (genre), ());
+# returns group by country & genre, then country only, then genre only, and TOTAL agg (the "()") -> UNION of those results
+
+########### APPLYING SQL TO REAL WORLD PROBLEMS ###########################
+#upper, lower -> for strings
+#EXTRACT('minute' FROM date_col)
+#string_agg() -> concatenate strings in a column
+SELECT rating, 
+	STRING_AGG(title, ', ') as films
+FROM film
+GROUP BY rating;
+#returns all films per rating CONCATENATED into one string
+
+## Find the right tables
+# need to know column names and content
+# QUERY specific system tables -> dpeends on db system
+## POSTGRES SQL
+SELECT *
+FROM pg_catalog.pg_tables;
+
+## MY SQL:
+SHOW TABLES;
+
+# SEE ALL COLUMNS BY TABLE IN catalog
+SELECT table_name,
+	   STRING_AGG(column_name, ', ')
+FROM information_schema.columns
+WHERE table_schema = 'public'
+GROUP BY table_name;
+
+# Save it as a VIEW, a virtual table
+CREATE VIEW name_of_view AS
+( 
+	#subquery
+	)
+
+## STORING DATA
+# create a table using new data
+## step 1 - create new table
+## step 2 - insert data into table
+INSERT into table_name (col1name, col2name)
+VALUES (1, 2),
+	   (1, 2),
+	   (1, 2);
+
+# create a table using existing data -> data is STORED (static), stores the DATA
+CREATE TABLE family_films AS
+	SELECT film_id, title
+	FROM film
+	WHERE rating = 'G';
+
+# creating a view using existing data -> QUERY is STORED (dynamic), updates when data is changed
+## -> CANNOT change data directly
+CREATE VIEW family_films AS
+	SELECT film_id, title
+	FROM film
+	WHERE rating = 'G';
+
+## UPDATE
+UPDATE table_name
+SET email = lower(email);
+
+UPDATE table_name
+SET email = lower(email)
+WHERE active = 'True';
+
+UPDATE film
+SET rental_rate = rental_rate + 1
+WHERE film_id IN 
+  (SELECT film_id 
+  	FROM actor AS a
+   INNER JOIN film_actor AS f
+      ON a.actor_id = f.actor_id
+   WHERE last_name IN ('WILLIS', 'CHASE', 'WINSLET', 'GUINESS', 'HUDSON')
+   );
+
+## DELETE
+# Remove a table
+DROP TABLE table_name;
+
+# CLEAR table of ALL records
+TRUNCATE TABLE table_name; #either this or below
+DELETE FROM table_name;
+
+# Clear table of SOME records
+DELETE FROM customers
+WHERE active = 'False';
+
+## BEST PRACTICE IN WRITING SQL SCRIPTS
+# always use AS
+# specify join
+# clear aliases
+# use comments
+# syntax highlighting: commands CAPITALiZED
+# use snake_case
+# IN instead of multiple ORs
+# use BETWEEN x and Y instead of <= and >=
+
+
+### ANALYZING BUSINESS DATA IN SQL ############################
