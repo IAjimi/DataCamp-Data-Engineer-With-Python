@@ -960,3 +960,441 @@ WHERE active = 'False';
 
 
 ### ANALYZING BUSINESS DATA IN SQL ############################
+## Common Table Expressions (CTEs): store a query's results in a temporary table
+# so it can be referenced later
+WITH 
+
+	table_1 AS (
+	SELECT ...
+	FROM ...),
+
+	table_2 AS (
+	SELECT ...
+	FROM ...)
+
+## EXAMPLE
+# some KPIs: 
+## Monthly Active Users (MAU), New Registrations / Month
+
+WITH revenue AS (
+  #-- Calculate revenue per eatery
+  SELECT meals.eatery,
+         sum(orders.order_quantity * meals.meal_price) AS revenue
+    FROM meals
+    JOIN orders ON meals.meal_id = orders.meal_id
+   GROUP BY eatery),
+
+  cost AS (
+  #-- Calculate cost per eatery
+  SELECT meals.eatery,
+         sum(stock.stocked_quantity * meals.meal_cost) AS cost
+    FROM meals
+    JOIN stock ON meals.meal_id = stock.meal_id
+   GROUP BY eatery)
+
+   #-- Calculate profit per eatery
+   SELECT revenue.eatery,
+          revenue - cost AS profit
+     FROM revenue
+     JOIN cost ON revenue.eatery = cost.eatery
+    ORDER BY profit DESC;
+
+## SAME, GROUPED BY MONTH
+WITH revenue AS ( 
+	SELECT
+		DATE_TRUNC('month', order_date) :: DATE AS delivr_month,
+		sum(meals.meal_price * orders.order_quantity) AS revenue
+	FROM meals
+	JOIN orders ON meals.meal_id = orders.meal_id
+	GROUP BY delivr_month),
+
+  cost AS (
+ 	SELECT
+		DATE_TRUNC('month', stocking_date) :: DATE AS delivr_month, #imp: cast to DATE
+		sum(meals.meal_cost * stock.stocked_quantity) AS cost
+	FROM meals
+    JOIN stock ON meals.meal_id = stock.meal_id
+	GROUP BY delivr_month)
+
+SELECT
+	revenue.delivr_month ,
+	revenue.revenue - cost.cost AS profit
+FROM revenue
+JOIN cost ON revenue.delivr_month = cost.delivr_month
+ORDER BY revenue.delivr_month ASC;
+
+### WINDOW FUNCTIONS
+## perform an operation across a set of rows related to the current row
+# EX: calculate a running total
+WITH maus AS(
+	SELECT
+		DATE_TRUNC('month', order_date)::DATE AS delivr_month,
+		COUNT(DISTINCT user_id) AS mau
+	FROM orders
+	GROUP BY delivr_month
+	)
+
+SELECT
+	delivr_month,
+	mau,
+	COALESCE(
+		LAG(mau) OVER (ORDER BY delivr_month ASC),
+		1
+		) AS last_mau
+FROM maus
+ORDER BY delivr_month ASC
+LIMIT 3;
+
+## ANOTHER EX
+WITH reg_dates AS (
+  SELECT
+    user_id,
+    MIN(order_date) AS reg_date
+  FROM orders
+  GROUP BY user_id),
+
+  regs AS (
+  SELECT
+    DATE_TRUNC('month', reg_date) :: DATE AS delivr_month,
+    COUNT(DISTINCT user_id) AS regs
+  FROM reg_dates
+  GROUP BY delivr_month)
+
+SELECT
+  -- Calculate the registrations running total by month
+  delivr_month,
+  	SUM(regs) OVER (ORDER BY delivr_month ASC) AS regs_rt
+FROM regs
+-- Order by month in ascending order
+ORDER BY delivr_month ASC; 
+
+
+## RETENTION RATE QUERY
+WITH user_activity AS (
+	SELECT DISTINCT
+	DATE_TRUNC('month', order_date) :: DATE AS delivr_month,
+	user_id
+	FROM orders
+	)
+
+SELECT previous.delivr_month,
+	   ROUND(
+		COUNT(DISTINCT current.user_id) :: NUMERIC /
+		GREATEST(COUNT(DISTINCT previous.user_id), 1), #greatest to avoid dividing by 0
+		2) AS retention
+FROM user_activity AS previous
+LEFT JOIN user_activity AS current
+ON previous.user_id = current.user_id
+AND previous.delivr_month = (current.delivr_month - INTERVAL '1 month')
+GROUP BY previous.delivr_month
+ORDER BY previous.delivr_month ASC
+LIMIT 3;
+
+
+## UNIT ECONOMICS -- DISTRIBUTION
+## 2 ways to do this
+# Method #1
+#-- Create a CTE named kpi
+WITH kpi AS  (
+  SELECT
+    user_id,
+    SUM(m.meal_price * o.order_quantity) AS revenue
+  FROM meals AS m
+  JOIN orders AS o ON m.meal_id = o.meal_id
+  GROUP BY user_id)
+
+#-- Calculate ARPU
+SELECT ROUND(AVG(revenue) :: NUMERIC, 2) AS arpu
+FROM kpi;
+
+# Method 2
+WITH kpi AS (
+  SELECT
+    #-- Select the week, revenue, and count of users
+    date_trunc('week', o.order_date) :: DATE AS delivr_week,
+    sum(o.order_quantity * m.meal_price) AS revenue,
+    count(distinct o.user_id) AS users
+  FROM meals AS m
+  JOIN orders AS o ON m.meal_id = o.meal_id
+  GROUP BY delivr_week)
+
+SELECT
+  delivr_week,
+  #-- Calculate ARPU
+  ROUND(
+    revenue :: NUMERIC / users,
+  2) AS arpu
+FROM kpi
+ORDER BY delivr_week ASC;
+
+
+## PLOTTING HISTORGRAMS / CREATING FREQUENCY TABLES
+WITH user_revenues AS (
+  SELECT
+    #-- Select the user ID and revenue
+    user_id,
+    sum(m.meal_price * o.order_quantity) AS revenue
+  FROM meals AS m
+  JOIN orders AS o ON m.meal_id = o.meal_id
+  GROUP BY user_id)
+
+SELECT
+  #-- Return the frequency table of revenues by user
+  round(revenue::NUMERIC, -2) AS revenue_100,
+  count(user_id) AS users
+FROM user_revenues
+GROUP BY revenue_100
+ORDER BY revenue_100 ASC;
+
+
+## COULD BUCKET INSTEAD
+WITH user_revenues AS (
+  SELECT
+    #-- Select the user IDs and the revenues they generate
+    user_id,
+    sum(m.meal_price * o.order_quantity) AS revenue
+  FROM meals AS m
+  JOIN orders AS o ON m.meal_id = o.meal_id
+  GROUP BY user_id)
+
+SELECT
+  #-- Fill in the bucketing conditions
+  CASE
+    WHEN revenue < 150 THEN 'Low-revenue users'
+    WHEN revenue BETWEEN 150 AND 300 THEN 'Mid-revenue users'
+    ELSE 'High-revenue users'
+  END AS revenue_group,
+  count(distinct user_id) AS users
+FROM user_revenues
+GROUP BY revenue_group;
+
+## PERCENTILES
+WITH user_revenues AS (
+  #-- Select the user IDs and their revenues
+  SELECT
+    user_id,
+    sum(m.meal_price * o.order_quantity) AS revenue
+  FROM meals AS m
+  JOIN orders AS o ON m.meal_id = o.meal_id
+  GROUP BY user_id)
+
+SELECT
+  #-- Calculate the first, second, and third quartile
+  ROUND(
+    PERCENTILE_CONT(0.25) WITHIN GROUP (ORDER BY revenue ASC) :: NUMERIC,
+  2) AS revenue_p25,
+  ROUND(
+        PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY revenue ASC) :: NUMERIC,
+  2) AS revenue_p50,
+  ROUND(
+        PERCENTILE_CONT(0.75) WITHIN GROUP (ORDER BY revenue ASC) :: NUMERIC,
+  2) AS revenue_p75,
+  -- Calculate the average
+  ROUND(avg(revenue) :: NUMERIC, 2) AS avg_revenue
+FROM user_revenues;
+
+
+## SURVEY OF USEFUL FUNCTIONS
+# DATES
+# changing '2018-08-13' -> 'Friday 13, August 2018'
+TO_CHAR('2018-08-13', 'FMDay  DD, FMMonth FYY') #check doucmentation
+
+# WINDOW FUNCTIONS
+SUM(...) OVER (...)
+LAG(...) OVER (...)
+RANK() OVER (...) 
+
+# PIVOTING -> CROSSTAB()
+## convert long to wide column
+CREATE EXTENSION IF NOT EXISTS tablefunc;
+
+SELECT * FROM CROSSTAB($$
+SELECT
+		meal_id,
+		DATE_TRUNC('month', order_date) :: DATE AS delivr_month,
+		COUNT(DISTINCT order_id) :: INT AS orders
+	FROM orders
+	WHERE meal_id IN (0, 1)
+		AND order_date < '2018-08-01'
+	GROUP BY meal_id, delivr_month
+	ORDER BY meal_id, delivr_month $$)
+	AS ct (meal_id INT,
+	"2018-06-01" INT,
+	"2018-07-01" INT)
+	ORDER BY meal_id ASC;
+
+## ANOTHER ONE
+CREATE EXTENSION IF NOT EXISTS tablefunc;
+
+#-- Pivot the previous query by quarter
+SELECT * FROM CROSSTAB($$
+  WITH eatery_users AS  (
+    SELECT
+      eatery,
+      #-- Format the order date so "2018-06-01" becomes "Q2 2018"
+      TO_CHAR(order_date, '"Q"Q YYYY') AS delivr_quarter,
+      #-- Count unique users
+      COUNT(DISTINCT user_id) AS users
+    FROM meals
+    JOIN orders ON meals.meal_id = orders.meal_id
+    GROUP BY eatery, delivr_quarter
+    ORDER BY delivr_quarter, users)
+
+  SELECT
+    #-- Select eatery and quarter
+    eatery,
+    delivr_quarter,
+    #-- Rank rows, partition by quarter and order by users
+    RANK() OVER
+      (PARTITION BY delivr_quarter
+       ORDER BY users DESC) :: INT AS users_rank
+  FROM eatery_users
+  ORDER BY eatery, delivr_quarter;
+$$)
+#-- Select the columns of the pivoted table
+AS  ct (eatery TEXT,
+        "Q2 2018" INT,
+        "Q3 2018" INT,
+        "Q4 2018" INT)
+ORDER BY "Q4 2018";
+
+
+###### REPORTING IN SQL ###################################################
+## COMBINE 2 TABLES w/o relationships w/ union
+
+#-- Select sport and events for summer sports
+SELECT 
+	sport, 
+    count(distinct event) AS events
+FROM summer_games
+GROUP BY sport
+UNION
+#-- Select sport and events for winter sports
+SELECT 
+	sport, 
+    count(distinct event) AS events
+FROM winter_games
+GROUP BY sport
+#-- Show the most events at the top of the report
+ORDER BY events DESC;
+
+## COMPLEX JOINS / UNIONS
+# either join countries on summer and winter games sep, then union results
+
+SELECT 
+	'summer' AS season, 
+    country, 
+    count(distinct event) AS events
+FROM summer_games AS s
+JOIN countries AS c
+ON c.id = s.country_id
+GROUP BY c.country
+
+UNION
+
+SELECT 
+	'winter' AS season, 
+    country, 
+    count(distinct event) AS events
+FROM winter_games AS w
+JOIN countries AS c
+ON c.id = w.country_id
+GROUP BY c.country
+
+ORDER BY events DESC;
+
+# alternative
+SELECT 
+	season, 
+    c.country, 
+    count(distinct event) AS events
+FROM
+    #-- Pull season, country_id, and event for both seasons
+    (SELECT 
+     	'summer' AS season, 
+     	country_id, 
+     	event
+    FROM summer_games
+    UNION
+    SELECT 
+     	'winter' AS season, 
+        country_id, 
+     	event
+    FROM winter_games) AS subquery
+JOIN countries AS c
+ON c.id = subquery.country_id
+#-- Group by any unaggregated fields
+GROUP BY c.country, subquery.season
+#-- Order to show most events at the top
+ORDER BY events DESC;
+
+## MULTIPLE CASE WHEN
+SELECT 
+	name,
+	CASE 
+	WHEN (gender = 'F' AND height > 175) THEN 'Tall Female'
+    WHEN (gender = 'M' AND height > 190 )THEN 'Tall Male'
+    ELSE 'Other' END AS segment
+FROM athletes;
+
+## USING SUBQUERIES TO FILTER DATA
+SELECT 
+	sum(bronze) AS bronze_medals, 
+    sum(silver) AS silver_medals, 
+    sum(gold) AS gold_medals
+FROM summer_games
+WHERE athlete_id IN
+    (SELECT id
+     FROM athletes
+     WHERE age <= 16);
+
+
+## CONVERTING DATA TYPES
+# ERROR: Function avg(...) does not exist -> TYPE error (numeric function on non numeric field)
+# ERROR: Operator does not exist -> another TYPE error (2 KEYs as different types)
+CAST(variable AS type)
+
+## CLEANING STRINGS
+SELECT REPLACE(string, '.') AS new_string
+SELECT LEFT(string, 2)
+SELECT UPPER(string)
+SELECT INITCAP(string) #title case
+SELECT LOWER(string)
+SELECT TRIM(string) #remove all spaces
+
+## DEALING WITH NULLS
+# Fix 1: filtering unlls
+# Fix 2: replace with COALESCE()
+
+# Ratio of null rows
+SELECT SUM(CASE WHEN country IS NULL THEN 1 ELSE 0) / sum(1.00)
+FROM orders;
+
+## WAYS TO FIX DUPLICATION
+# Fix 1: remove aggregation that causes the duplication
+# Fix 2: add a field to JOIN
+# Fix 3: add subquery?
+
+## WINDOW FUNCTION
+SUM(value) OVER (PARTITION BY field ORDER BY field)
+
+# EXAMPLE
+SELECT country_id,
+	athlete_id,
+	SUM(bronze) OVER (PARTITION BY country_id) AS total_bronze #total bronze medals by country
+FROM summer_games;
+
+# MAY RUN INTO ISSUES WHEN COMBINED WITH GROUP BY
+# NOT
+SELECT team_id,
+	SUM(points) AS team_points,
+	SUM(points) OVER () AS league_points
+FROM table
+GROUP BY team_id;
+
+# BUT
+SELECT team_id,
+	SUM(points) AS team_points,
+	SUM(SUM(points)) OVER () AS league_points
+FROM table
+GROUP BY team_id;
