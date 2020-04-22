@@ -1377,6 +1377,7 @@ FROM orders;
 
 ## WINDOW FUNCTION
 SUM(value) OVER (PARTITION BY field ORDER BY field)
+ROW_NUMBER() OVER (PARTITION BY field ORDER BY field)
 
 # EXAMPLE
 SELECT country_id,
@@ -1398,3 +1399,117 @@ SELECT team_id,
 	SUM(SUM(points)) OVER () AS league_points
 FROM table
 GROUP BY team_id;
+
+## 
+
+#-- Query region, athlete name, and total_golds
+SELECT 
+	region,
+    athlete_name,
+    total_golds
+FROM
+    (SELECT 
+		#-- Query region, athlete_name, and total gold medals
+        region, 
+        name AS athlete_name, 
+        SUM(gold) AS total_golds,
+        #-- Assign a regional rank to each athlete
+        ROW_NUMBER() OVER (PARTITION BY region ORDER BY SUM(gold) DESC) AS row_num
+    FROM summer_games_clean AS s
+    JOIN athletes AS a
+    ON a.id = s.athlete_id
+    JOIN countries AS c
+    ON s.country_id = c.id
+    #-- Alias as subquery
+    GROUP BY region, athlete_name) AS subquery
+#-- Filter for only the top athlete per region
+WHERE row_num = 1;
+
+## PERCENT OF TOTAL CALC
+SELECT 
+	region,
+    country,
+	SUM(gdp) AS country_gdp,
+    SUM(SUM(gdp)) OVER () AS global_gdp,
+    SUM(gdp) / SUM(SUM(gdp)) OVER () AS perc_global_gdp
+FROM country_stats AS cs
+JOIN countries AS c
+ON cs.country_id = c.id
+WHERE gdp IS NOT NULL
+GROUP BY region, country
+ORDER BY country_gdp DESC;
+
+
+##
+-- Pull country_gdp by region and country
+SELECT 
+	region,
+    country,
+	SUM(gdp) AS country_gdp,
+    -- Calculate the global gdp
+    SUM(SUM(gdp)) OVER () AS global_gdp,
+    -- Calculate percent of global gdp
+    SUM(gdp) / SUM(SUM(gdp)) OVER () AS perc_global_gdp,
+    -- Calculate percent of gdp relative to its region
+    SUM(gdp) / SUM(SUM(gdp)) OVER (PARTITION BY region) AS perc_region_gdp
+FROM country_stats AS cs
+JOIN countries AS c
+ON cs.country_id = c.id
+-- Filter out null gdp values
+WHERE gdp IS NOT NULL
+GROUP BY region, country
+-- Show the highest country_gdp at the top
+ORDER BY country_gdp DESC;
+
+
+##
+-- Bring in region, country, and gdp_per_million
+SELECT 
+    region,
+    country,
+    SUM(gdp) / SUM(pop_in_millions) AS gdp_per_million,
+    SUM(SUM(gdp)) OVER () / SUM(SUM(pop_in_millions)) OVER () AS gdp_per_million_total
+FROM country_stats_clean AS cs
+JOIN countries AS c 
+ON cs.country_id = c.id
+WHERE year = '2016-01-01' AND gdp IS NOT NULL
+GROUP BY region, country
+ORDER BY gdp_per_million DESC;
+
+## MORE STUFF
+SELECT
+	DATE_PART('month', date) AS month,
+	country_id,
+    SUM(views) AS month_views,
+    LAG(SUM(views)) OVER (PARTITION BY country_id ORDER BY DATE_PART('month', date)) AS previous_month_views,
+    SUM(views) / LAG(SUM(views)) OVER (PARTITION BY country_id ORDER BY DATE_PART('month', date)) - 1 AS perc_change
+FROM web_data
+WHERE date <= '2018-05-31'
+GROUP BY month, country_id;
+
+## ROLLING AVERAGE
+# syntax
+AVG(value) OVER (PARTITION BY field ORDER BY field ROWS BETWEEN N PRECEDING AND CURRENT ROW)
+
+# EXAMPLE: 7 day rolling average
+SELECT
+	date,
+	SUM(views) AS daily_views,
+	AVG(SUM(views)) OVER (ORDER BY date ROWS BETWEEN 6 PRECEDING AND CURRENT ROW) AS weekly_avg
+FROM web_data
+GROUP BY date;
+
+# then using to find week on week change
+SELECT 
+	date,
+    weekly_avg,
+    LAG(weekly_avg,7) OVER (ORDER BY date) AS weekly_avg_previous,
+    (weekly_avg / LAG(weekly_avg,7) OVER (ORDER BY date)) - 1 AS perc_change
+FROM
+  (SELECT
+      date,
+      SUM(views) AS daily_views,
+      AVG(SUM(views)) OVER (ORDER BY date ROWS BETWEEN 6 PRECEDING AND CURRENT ROW) AS weekly_avg
+  FROM web_data
+  GROUP BY date) AS subquery
+ORDER BY date DESC;

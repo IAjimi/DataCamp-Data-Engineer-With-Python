@@ -370,7 +370,7 @@ baseball_df['W'].values #is a numpy array
 run_diffs_np = baseball_df['RS'].values - baseball_df['RD'].values
 
 
-### INTRODUCTION TO SHELL ##################33
+### INTRODUCTION TO SHELL ######################################################
 # pwd : working directory
 # ls : lists files in directory
 ## ls -R : works recursively, shows every file and directory in the current level, then everything in each sub-directory, and so on.
@@ -459,3 +459,178 @@ wc -l seasonal/* | grep -v total | sort -n | head -n 1 #returns the file w/ fewe
 
 ## CTRL + C :stop running program
 
+### ENVIROMMENT VARIABLES
+## HOME: user home directory
+## PWD: present working directory
+## SHELL: which shell is being used (/bin/bash)
+## USER: user id
+# to get full list, type set in shell
+
+# echo: prints out value of variable
+echo USER #prints USER
+echo $USER #print value of USER
+
+### SHELL VARIABLE
+# basically a local variable
+
+## Setting value
+training=seasonal/summer.csv #NO spaces before after =
+
+### LOOPS
+## STRUCTURE
+for f in ...; do ... f; done
+
+## EXAMPLE
+for filetype in gif jpg png; do echo $filetype; done
+#returns gif, jpg, png
+
+for filename in seasonal/*.csv; do echo $filename; done
+
+## Can record the names of a set of files
+datasets=seasonal/*.csv
+for filename in $datasets; do echo $filename; done
+
+## CAREFUL!
+files=seasonal/*.csv
+for f in files; do echo $f; done #because files, not $files, only prints word files
+
+## MORE COMPLEX EX
+for file in seasonal/*.csv; do head -n 2 $file | tail -n 1; done #prints 2nd line of each file
+
+## NOTE: if spaces in file name, need to add quotes
+mv 'July 2017.csv' '2017 July data.csv'
+
+## DOING SEVERAL THINGS IN ONE LOOP
+#a loop can contain any number of commands, sep by ;
+for f in seasonal/*.csv; do echo $f; head -n 2 $f | tail -n 1; done
+
+### SHELL SCRIPT
+# convention is to end with .sh to save bash commands
+# $@: all of the command-line parameters given to the script
+
+# EXAMPLE
+# if unique-lines.sh contains sort $@ | uniq, the line below 
+bash unique-lines.sh seasonal/summer.csv #processes one file, seasonal/summer.csv
+
+# alternative: $1 $2, which refer to 1st and 2nd command parameters
+cut -d , -f $2 $1
+bash column.sh seasonal/autumn.csv 1 
+# equivalent to cut -d , -f seasonal/autumn.csv 1
+
+## LOOPS in shell scripts
+# Print the first and last data records of each file.
+for filename in $@
+do
+    head -n 2 $filename | tail -n 1
+    tail -n 1 $filename
+done
+
+### INTRODUCTION TO BASJ SCRIPTING ######################################################
+### REGEX REMINDERS
+grep 'p' fruits.txt
+# apple
+
+grep [pc] fruits.txt
+# apple, carrot
+
+#!/usr.bash
+
+# SED is the equivalent of REPLACE
+cat soccer_scores.csv | sed 's/Cherno/Cherno City/' | sed 's/Arda/Arda United/' > soccer_scores_edited.csv #replaces Arda w Arda United
+
+# Now save and run!
+
+sort | uniq -c #sort then unique -> important bc unique only checks for adjacent rows!
+
+### BASH SCRIPT ANATOMY
+# starts with #!/usr/bash
+
+### ARGUMENTS
+$@ #all arguments
+$# # number of arguments
+$1 #first argument
+
+## EXAMPLE SCRIPT
+echo $1 
+
+cat hire_data/* | grep "$1" > "$1".csv #$1 in quotes still recognizes $1, casts as string?
+
+
+## CAREFUL
+# single quotes: literal interpretation
+# double quotes: literal EXCEPT for $ and backticks ``
+# backticks: "a shell within a shell"
+
+# EXAMPLE
+rightnow="the date is `date`"
+echo $rightnow
+# prints out: the date is April 21
+
+#same for
+rightnow="the date is $(date)"
+
+### NUMERIC VARIABLES IN BASH
+# no 1 + 1 math in BASH, need to use expr
+expr 1 + 1
+# but does not handle decimals
+
+echo "5 + 7.5" | bc #bc is like expr but does handle decimals
+echo "scale=3; 10 / 3" | bc #use scale to specify number of decimals (; separates lines)
+
+## EX
+model1=87.65
+model2=89.20
+echo "the total score is $(echo "$model1 + $model2" | bc)"
+echo "the average score is $(echo "$model1 + $model2) / 2" | bc)"
+
+## OTHER EX
+# Get first ARGV into variable
+temp_f=$1
+
+# Subtract 32
+temp_f2=$(echo "scale=2; $temp_f - 32" | bc)
+
+# Multiply by 5/9 and print
+temp_c=$(echo "scale=2; $temp_f2 * 5 / 9" | bc)
+
+# Print the temp
+echo $temp_c
+
+### BASH ARRAY
+# 1. Declare w/o adding elements
+declare -a my_first_array
+
+# 2. Create and add elements at the same time
+my_first_array=(1 2 3) #NO COMMAS
+
+# array[@]: returns all elements 
+# #array[@]: returns length of array
+echo ${my_array[@]}
+echo ${#my_array[@]}
+
+# can subset with [], 1st element is at position 0
+echo ${my_first_array[2]}
+
+# can change array elements with indexing
+my_first_array[0]=999
+
+#array[@]:N:M slices subset of array, N is starting index, M is number of elements to return
+echo ${my_first_array[@]:3:2}
+
+#append
+my_array+-(elements)
+
+#without parenthesis, element gets ADDED to first element of array
+
+## ASSOCIATIVE ARRAYS (Bash 4 onwards)
+# like regular array but with key value pairs (dictionary)
+# NEED declare syntax
+declare -A city_details
+city_details=([city_name]="New York" [population]=14000000)
+echo ${city_details[city_name]} #use key to index
+
+# in one line
+declare -A city_details=([city_name]="New York" [population]=14000000)
+
+# return all keys
+echo ${!city_details[@]}
