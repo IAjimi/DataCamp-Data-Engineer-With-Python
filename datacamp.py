@@ -1900,4 +1900,692 @@ s3.upload_file(
 
 ## Generating an index page -> also an option 
 
-### SNS Topics
+### SNS Topics (Simple Notification Service)
+## Creating an SNS client
+sns = boto3.client('sns',
+				   region_name='us-east-1',
+				   aws_access_key_id=AWS_KEY_ID,
+				   aws_secret_access_key=AWS_SECRET
+					)
+
+## Creating a topic
+response = sns.create_topic(Name='city-alerts')
+topic_arn = response['TopicArn']
+
+## Listing Topics
+response = sns.list_topics()
+
+## Delete Topics
+sns.delete_topic(TopicArn='arn:aws...etcetc')
+
+### MANAGING SUBSCRIPTIONS
+# Endpoint: who it is sent to
+# Status: Pending, Sent
+# Protocol: how it is sent, SMS, email..
+
+## Creating a subscription
+response = sns.subscribe(
+	TopicArn='arn:aws...etcetc',
+	Protocol='SMS',
+	Endpoint='+13125551123'
+	)
+
+# List all subscriptions
+sns.list_subscriptions()['Subscriptions']
+
+# List subscriptions by topic
+sns.list_subscriptions_by_topic(
+	TopicArn='arn:aws...etcetc'
+	)
+
+# Delete subscription
+sns.unsubscribe(
+	SubscriptionArn='arn:aws...etcetc'
+	)
+
+### SENDING MESSAGES
+# Publishing to a topic
+response = sns.publish(
+	TopicArn = 'arn:aws...etcetc',
+	Message = 'Body text',
+	Subject = 'Subject Line'
+	)
+
+# Sending a single SMS (not part of a subscription!)
+response = sns.publish(
+	PhoneNumber = '+13125551123',
+	Message = 'Body text'
+	) 
+
+### REKOGNIZING PATTERNS 
+## need to initialize the s3 client, upload a file
+## then initialize the rekognition client
+rekog = boto3.client('rekognition',
+				   region_name='us-east-1',
+				   aws_access_key_id=AWS_KEY_ID,
+				   aws_secret_access_key=AWS_SECRET
+					)
+
+## then call 'detect_labels'
+response = rekog.detect_labels(
+	Image={'S3Object': {
+				'Bucket': 'datacamp-img',
+				'Name': 'report.jpg'
+			}
+		},
+	MaxLabels = 10, # max number of labels that are returned
+	MinConfidence = 95 # min confidence for labels that are returned
+	)
+
+# can also detect text
+response = rekog.detect_text(
+	Image={'S3Object': {
+				'Bucket': 'datacamp-img',
+				'Name': 'report.jpg'
+			}
+		}
+	)
+
+### EXAMPLE: counting cats
+# Create an empty counter variable
+cats_count = 0
+# Iterate over the labels in the response
+for label in response['Labels']:
+    # Find the cat label, look over the detected instances
+    if label['Name'] == 'Cat':
+        for instance in label['Instances']:
+            # Only count instances with confidence > 85
+            if (instance['Confidence'] > 85):
+                cats_count += 1
+# Print count of cats
+print(cats_count)
+
+### EXAMPLE: finding words
+# Create empty list of words
+words = []
+# Iterate over the TextDetections in the response dictionary
+for text_detection in response['TextDetections']:
+  	# If TextDetection type is WORD, append it to words list
+    if text_detection['Type'] == 'WORD':
+        # Append the detected text
+        words.append(text_detection['DetectedText'])
+# Print out the words list
+print(words)
+
+### TRANSLATING TEXT
+# Initialize client
+translate = boto3.client('translate',
+				   region_name='us-east-1',
+				   aws_access_key_id=AWS_KEY_ID,
+				   aws_secret_access_key=AWS_SECRET
+					)
+
+# Translate text
+response = translate.translate_text(
+	Text='Hello how are you',
+	SourceLanguageCode='auto',
+	TargetLanguageCode='es'
+	)
+
+### DETECTING LANGUAGE
+# Initialize client
+comprehend = boto3.client('comprehend',
+				   region_name='us-east-1',
+				   aws_access_key_id=AWS_KEY_ID,
+				   aws_secret_access_key=AWS_SECRET
+					)
+
+# Detect dominant language
+response = comprehend.detect_dominant_language(
+	Text='Hello how are you'
+	)
+
+# Detect text sentiment
+response = comprehend.detect_sentiment(
+	Text='I love you',
+	LanguageCode= 'en'
+	)['Sentiment']
+
+## EXAMPLE
+# Get topic ARN for scooter notifications
+topic_arn = sns.create_topic(Name='scooter_notifications')['TopicArn']
+
+for index, row in scooter_requests.iterrows():
+    # Check if notification should be sent
+    if (row['sentiment'] == 'NEGATIVE') & (row['img_scooter'] == 1):
+        # Construct a message to publish to the scooter team.
+        message = "Please remove scooter at {}, {}. Description: {}".format(
+            row['long'], row['lat'], row['public_description'])
+
+        # Publish the message to the topic!
+        sns.publish(TopicArn = topic_arn,
+                    Message = message, 
+                    Subject = "Scooter Alert")
+
+### INTRODUCTION TO DATABASE DESIGN ######################################################
+# skipped
+
+### INTRODUCTION TO SCALA ######################################################
+# general-purpose programming language for functional programming and strong
+# static type system
+# can run on Java virtual machine -> pretty much anywhere
+# SCAlable LAnguage
+
+## Scala is object-oriented
+# every value is an object
+# every operation is a method call
+## scala is functional
+# functions are first-class values
+# operations of a program ... ?
+
+## Scala has 2 types of variable
+# val: immutable, cant be reassigned
+# var: mutable
+
+## Pros & Cons of immuntability
+# pros: cant accid change your data, fewer tests to write
+# cons: more memory required
+
+## Types
+# Int, Float, Boolean, 
+
+### THE SCALA INTERPRETER
+# Calculate the difference between 8 and 5
+val difference = 8.-(5)
+
+# Print the difference
+println(difference)
+
+## // Define immutable variables for clubs 2♣ through 4♣
+var twoClubs: Int = 2
+var playerA: String = "Alex"
+
+# Change playerA from Marta to Umberto
+playerA = "Umberto"
+
+### FUNCTIONS
+def bust(hand: Int): Boolean = {
+	hand > 21
+}
+
+# can remove the boolean
+def bust(hand: Int) = {
+	hand > 21
+}
+# function are first-class values: the = sign is a tell -> returns boolean true or false
+
+## EXAMPLE
+#// Calculate hand values
+var handPlayerA: int = queenDiamonds + threeClubs + aceHearts + fiveSpades
+var handPlayerB: int = kingHearts + jackHearts
+
+// Find and print the maximum hand value
+println(maxHand(handPlayerA, handPlayerB))
+
+### COLLECTIONS
+## mutable or immutable
+
+## ARRAY (mutable)
+# parametrize an array
+val players = new Array[String](3) #type parameter, length
+
+# initialize elements
+val players = Array("Alex", "Chen")
+
+# arrays are mutable BUT needs to be right type!
+players(0) = "Alec" 
+
+# can mix and match types by using Any
+val players = new Array[Any](3)
+
+## LIST (immutable)
+val players = List("Alex", "Chen")
+
+# some list methods
+players.drop()
+players.mkString(", ")
+players.length
+players.reverse
+
+## add elements to a list (really, create another list based on old list)
+val newPlayers = "Sindhu" :: players 
+
+# alternatively
+var players = List("Alex", "Chen")
+players = "Sindhu" :: players
+
+# :: prepends, adds new element to the beginning of a list 
+# ::: concatenates lists
+
+## empty list: Nil
+# common way to initialize new list
+val players = "Alex" :: "Chen" :: Nil
+
+### IF-ELSE
+# note: && is AND, || is OR
+def maxHand(handA: Int, handB: Int): Int = {
+	if (handA > handB) handA
+	else handB
+}
+
+# outside a function
+if (handA > handB) println(handA)
+else println(handB)
+
+## MULTIPLE IF ELSE
+if (bust(handA) & bust(handB)) println(0)
+else if (bust(handA)) println(handB)
+else if (bust(handB)) println(handA)
+else if (handA > handB) println(handA)
+else println(handB)
+
+### WHILE
+var i = 0
+val num = 3
+
+while (i < num){
+	println('some text')
+	i = i + 1 #could also be i += 1
+}
+
+## EXAMPLE
+var i = 0
+var hands = Array(17, 24, 21)
+
+while (i < hands.length){
+	# BODY OF LOOP
+}
+
+### IMPERATIVE V FUNCTIONAL STYLE
+## IMPERATIVE
+var i = 0
+var hands = Array(17, 24, 21)
+
+while  (i < hands.length){
+	println(bust(hands(i)))
+	i += 1
+}
+
+## FUNCTIONAL
+# map input values to output values rather than change data in place
+var hands = Array(17, 24, 21)
+hands.foreach(INSERT_FCT_HERE)
+
+## SIDE EFFECTS
+# var: mutable, so often comes with side-effects -> imperative
+
+### INTRODUCTION TO PYSPARK ######################################################
+# Verify SparkContext
+print(sc)
+
+# Print Spark version
+print(sc.version)
+
+# Spark's core data structure is the Resilient Distributed Dataset (RDD)
+# RDDs are hard to work with directly -> Spark DataFrame 
+
+# first start SparkSession object from your SparkContext
+# SparkContext +- your connection to the cluster
+# SparkSession +- your interface with that connection.
+
+# Import SparkSession from pyspark.sql
+from pyspark.sql import SparkSession
+
+# Create my_spark
+my_spark = SparkSession.builder.getOrCreate()
+
+# Print my_spark
+print(my_spark)
+
+# Print the tables in the catalog
+print(spark.catalog.listTables())
+
+## Get stuff from tables
+query = "FROM flights SELECT * LIMIT 10"
+flights10 = spark.sql(query)
+flights10.show()
+
+# Convert the results to a pandas DataFrame
+pd_counts = flights10.toPandas()
+
+# Print the head of pd_counts
+print(pd_counts.head())
+
+## ADD DATA TO SPARK
+# Create pd_temp
+pd_temp = pd.DataFrame(np.random.random(10))
+
+# Create spark_temp from pd_temp
+spark_temp = spark.createDataFrame(pd_temp)
+
+# Examine the tables in the catalog
+print(spark.catalog.listTables())
+
+# Add spark_temp to the catalog
+spark_temp.createOrReplaceTempView('temp')
+
+# Examine the tables in the catalog again
+print(spark.catalog.listTables())
+
+### READING CSV
+file_path = "/usr/local/share/datasets/airports.csv"
+airports = spark.read.csv(file_path, header=True)
+
+### ADDING COLUMNS
+# Create the DataFrame flights
+flights = spark.table("flights")
+
+# Show the head
+flights.show()
+
+# Add duration_hrs
+flights = flights.withColumn("duration_hrs", flights.air_time/60)
+
+### FILTERING COLUMNS
+# Filter flights by passing a string
+long_flights1 = flights.filter("distance > 1000")
+
+# Filter flights by passing a column of boolean values
+long_flights2 = flights.filter(flights.distance > 1000)
+
+### ANOTHER EXAMPLE
+# Select the first set of columns
+selected1 = flights.select("tailnum", "origin", "dest")
+
+# Select the second set of columns
+temp = flights.select(flights.origin, flights.dest, flights.carrier, )
+
+# Define filters
+filterA = flights.origin == "SEA"
+filterB = flights.dest == "PDX"
+
+# Filter the data, first by filterA then by filterB
+selected2 = temp.filter(filterA).filter(filterB)
+
+### MORE COMPLEX SELECT
+# Can create more complex selects with .alias()
+avg_speed = (flights.distance/(flights.air_time/60)).alias("avg_speed")
+speed1 = flights.select("origin", "dest", "tailnum", avg_speed)
+
+# Create the same table using a SQL expression
+speed2 = flights.selectExpr("origin", "dest", "tailnum", "distance/(air_time/60) as avg_speed")
+
+# Average duration of Delta flights
+flights.filter(flights.carrier == "DL").filter(flights.origin == "SEA").groupBy().avg("air_time").show()
+
+# Total hours in the air
+flights.withColumn("duration_hrs", flights.air_time/60).groupBy().sum("duration_hrs").show()
+
+### MORE FILTERING
+# Find the shortest flight from PDX in terms of distance
+flights.filter(flights.origin == "PDX").groupBy().min("distance").show()
+
+# Find the longest flight from SEA in terms of air time
+flights.filter(flights.origin == "SEA").groupBy().max("air_time").show()
+
+# Remove missing values
+model_data = model_data.filter("arr_delay is not NULL and dep_delay is not NULL and air_time is not NULL and plane_year is not NULL")
+
+### GROUPING
+# Number of flights each plane made
+flights.groupBy("tailnum").count().show()
+
+# Average duration of flights from PDX and SEA
+flights.groupBy("origin").avg("air_time").show()
+
+### MORE GROUPING
+# can add additional sql aggregate functions from pyspark.sql.functions
+import pyspark.sql.functions as F
+
+# Group by month and dest
+by_month_dest = flights.groupBy("month", "dest")
+
+# Average departure delay by month and destination
+by_month_dest.avg("dep_delay").show()
+
+# Standard deviation of departure delay
+by_month_dest.agg(F.stddev("dep_delay")).show()
+
+### JOINS
+# Examine the data
+print(airports.show())
+
+# Rename the faa column
+airports = airports.withColumnRenamed("faa", "dest")
+
+# Join the DataFrames
+flights_with_airports = flights.join(airports, on = 'dest', how = 'leftouter')
+
+# Examine the new DataFrame
+print(flights_with_airports.show())
+
+### MACHINE LEARNING PIPELINE
+# Transformer:  takes a DataFrame and returns a new DataFram
+# Estimator classes: takes a DataFrame, implement a .fit(), returns a model
+
+## CHANGING TYPES
+# Spark only hands **numerical** data for modeling -> use .cast()
+model_data = model_data.withColumn("arr_delay", model_data.arr_delay.cast("integer"))
+model_data = model_data.withColumn("is_late", model_data.arr_delay > 0)
+
+# If no obvious order for string, can create 'one-hot vectors'
+# 1st create a StringIndexer
+carr_indexer = StringIndexer(inputCol="carrier", outputCol="carrier_index")
+
+# 2nd encode it with OneHotEncoder
+carr_encoder = OneHotEncoder(inputCol="carrier_index", outputCol="carrier_fact")
+
+# Before modelling need to combine all columns into one single column
+vec_assembler = VectorAssembler(
+	inputCols=["month", "air_time", "carrier_fact", "dest_fact", "plane_age"], 
+	outputCol="features"
+	)
+
+## CREATE THE PIPELINE
+# Import Pipeline
+from pyspark.ml import Pipeline
+
+# Make the pipeline
+flights_pipe = Pipeline(stages=[dest_indexer, 
+								dest_encoder, 
+								carr_indexer, 
+								carr_encoder, 
+								vec_assembler])
+
+# Fit and transform the data
+piped_data = flights_pipe.fit(model_data).transform(model_data)
+
+# Split the data into training and test sets
+training, test = piped_data.randomSplit([.6, .4])
+
+### START TRAINING MODEL
+## IMPORT MODEL
+# Import LogisticRegression
+from pyspark.ml.classification import LogisticRegression
+
+# Create a LogisticRegression Estimator
+lr = LogisticRegression()
+
+## IMPORT EVALUATOR
+# Import the evaluation submodule
+import pyspark.ml.evaluation as evals
+
+# Create a BinaryClassificationEvaluator
+evaluator = evals.BinaryClassificationEvaluator(metricName="areaUnderROC")
+
+## IMPORT TUNING
+# Import the tuning submodule
+import pyspark.ml.tuning as tune
+
+# Create the parameter grid
+grid = tune.ParamGridBuilder()
+
+# Add the hyperparameter
+grid = grid.addGrid(lr.regParam, np.arange(0, .1, .01))
+grid = grid.addGrid(lr.elasticNetParam, [0, 1])
+
+# Build the grid
+grid = grid.build()
+
+## CREATE CVor
+cv = tune.CrossValidator(estimator=lr,
+               estimatorParamMaps=grid,
+               evaluator=evaluator
+               )
+
+## FIT MODEL
+# Call lr.fit()
+best_lr = lr.fit(training)
+
+# Use the model to predict the test set
+test_results = best_lr.transform(test)
+
+# Evaluate the predictions
+print(evaluator.evaluate(test_results))
+
+### BIG DATA FUNDAMENTALS WITH PYSPARK ######################################################
+## The 3 Vs of Big Data: Volume, Variety, Velocity
+## Big Data concepts
+# Clustered computing: collection of resources of different machines
+# Parallel computing: simultaneous computation
+# Distributed computing: collection of nodes that run in parallel
+# Batch processing: breaking the job into small pieces and run them on individual machnines
+
+## Spark mode of deployments
+# local mode: convenient for testing, debugging
+# cluster mode: set of pre-defined machines
+
+### SparkContext: entry point to Spark
+sc.version
+sc.pythonVer
+sc.master
+
+## Functional programming
+# map(func, list): takes a function and a list, returns a new list w/ items returned
+# filter(func, list): takes a function and a list, returns a new list w/ items that evaluated to True
+list(filter(lambda x: (x % 2 != 0), items))
+
+## Creating RDDs
+# from existing collection
+rdd = sc.parallelize([1, 2, 4])
+
+# from external datasets
+rdd2 = sc.textFile('test.txt')
+
+## Controlling partitions
+rdd2 = sc.textFile('test.txt', minPartitions = 6)
+rdd2.getNumPartitions()
+
+## RDD Transformations
+# Note: performed with lazy evaluation
+rdd.map(lambda x: x * x)
+rdd.filter(lambda x: x > 2)
+
+# flatmap: returns multiple values for each element in original RDD
+mylist = ['Hello World', 'How are you']
+rdd = sc.parallelize(mylist)
+rdd.flatMap(lambda x: x.split(" ")) #returns 'hello' 'world' 'how' 'are' 'you'
+
+# union: returns the union of 2 rdds
+rdd.union(rdd2)
+
+## RDD Actions
+# collect(): return all the elements in rdd
+# take(N): returns an array with the first N elements
+# first: returns the first element
+# count: returns the number of elements
+
+### Pair RDDs
+## special structure for key/value pairs in datasets
+# created from key-value tuple
+my_tuple = [("a", 1), ("b", 2)]
+rdd = sc.parallelize(my_tuple)
+
+# or created from regular rdd
+my_list = ['Sam 23', 'Mary 34', 'Peter 25']
+regularRDD = sc.parallelize(my_list)
+pairRDD_RDD = regularRDD.map(lambda s: (s.split(' ')[0], s.split(' ')[1]))
+
+## transformations
+# reduceByKey(): combines values with the same key, runs parallel operations for each key in df
+reducebykey_rdd = rdd.reduceByKey(lambda x, y: x + y)
+
+# sortByKey(): returns rdd sorted in ascending or descending order
+rdd.sortByKey(ascending = False)
+
+# groupByKey(): groups all values with the same key
+airports = [("US", "JFK"),("UK", "LHR"),("FR", "CDG"), ("US", "SFO")]
+regularRDD = sc.parallelize(airports)
+pairRDD_group = regularRDD.groupByKey().collect()
+
+for cont, air in pairRDD_group:
+	print(cont, list(air))
+
+# join(): joins two pair RDD based on keys
+RDD1.join(RDD2).collect()
+
+### ADVANCED RDD ACTIONS
+## reduce(func) : aggregates elements of regular rdd
+x = [1, 3, 4, 5]
+rdd = sc.parallelize(x)
+rdd.reduce(lambda x, y: x + y) # returns 14
+
+## saveAsTextFile(): saves RDD into text file, with each partition as a sep file
+# can use coalesce() to save all as one file
+
+## for pair RDDs
+# countByKey(): only for type key value
+rdd = sc.parallelize(("a", 1), ("b", 1), ("a", 1))
+
+for key, val in rdd.countByKey().items():
+	print(key, val)
+
+# collectAsMap(): returns key-value pairs as a dictionary
+
+### EXAMPLE CODE
+# Convert the words in lower case and remove stop words from stop_words
+splitRDD_no_stop = splitRDD.filter(lambda x: x.lower() not in stop_words)
+
+# Create a tuple of the word and 1 
+splitRDD_no_stop_words = splitRDD_no_stop.map(lambda w: (w, 1))
+
+# Count of the number of occurences of each word
+resultRDD = splitRDD_no_stop_words.reduceByKey(lambda x, y: x + y)
+
+# Display the first 10 words and their frequencies
+for word in resultRDD.take(10):
+	print(word)
+
+# Swap the keys and values 
+resultRDD_swap = resultRDD.map(lambda x: (x[1], x[0]))
+
+# Sort the keys in descending order
+resultRDD_swap_sort = resultRDD_swap.sortByKey(ascending=False)
+
+# Show the top 10 most frequent words and their frequencies
+for word in resultRDD_swap_sort.take(10):
+	print("{} has {} counts". format(word[1], word[0]))
+
+
+### ABSTRACTING DATA WITH DATAFRAMES
+# creating DF from rdd
+spark.createDataFrame(rdd, schema = ['Model', 'Year', 'Height'])
+
+# from csv / json / txt file
+spark.read.csv('people.csv', header = True, inferSchema = True)
+
+## DF Transformations
+# orderby()
+df.count().orderBy('Age').show(3)
+
+# dropDuplicates()
+test_df.select('User_ID', 'Gender', 'Age').dropDuplicates()
+
+# printSchema: prints types of all columns
+test_df.printSchema()
+
+# columns: prints all columns
+test_df.columns
+
+# describe(): prints summary stats
+test_df.describe().show()
