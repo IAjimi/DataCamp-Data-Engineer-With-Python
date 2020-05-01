@@ -2589,3 +2589,528 @@ test_df.columns
 
 # describe(): prints summary stats
 test_df.describe().show()
+
+### INTERACTING WITH DATAFRAMES
+df.createOrReplaceTempView('table')
+query = '''SELECT * FROM table'''
+test_df = spark.sql(query)
+test_df.show(5)
+
+### DATA VISUALIZATION
+## using pyspark_dist_explore
+# hist(), distplot(), pandas_histogram()
+test_df = spark.read.csv('test.csv', header = True, inferSchema = True)
+test_df_age = test_df.select('Age')
+hist(test_df_age, bins=20, color="red")
+
+## using pandas DataFrames
+test_df_pandas = test_df.toPandas()
+test_df_pandas.hist('Age')
+
+# difference between pandas and pyspark DFs is pyspark is evaluated lazily
+# pandas DFs are mutable and pyspark DFs are immutable
+
+## using handyspark
+hdf = test_df.toHandy()
+hdf.cols["Age"].hist()
+
+### EXAMPLE
+# Check the column names of names_df
+print("The column names of names_df are", names_df.columns)
+
+# Convert to Pandas DataFrame  
+df_pandas = names_df.toPandas()
+
+# Create a horizontal bar plot
+df_pandas.plot(kind='barh', x='Name', y='Age', colormap='winter_r')
+plt.show()
+
+### MACHINE LEARNING
+## only supports rdds
+# Import the library for ALS
+from pyspark.mllib.recommendation import ALS
+
+# Import the library for Logistic Regression
+from pyspark.mllib.classification import LogisticRegressionWithLBFGS
+
+# Import the library for Kmeans
+from pyspark.mllib.clustering import KMeans
+
+### INTRODUCTION TO COLLABORATIVE FILTERING
+## User-User collaborative filtering: finds users similar to target user
+## Item-item: finds items similar to items of target user
+
+## the rating class is a wrapper around tuple (user, product, rating)
+from pyspark.mllib.recommendation import Rating
+r = Rating(user = 1, product = 2, rating = 5.0)
+r2 = Rating(1, 2, 2)
+r3 = Rating(2, 1, 2)
+ratings = sc.parallelize([r1, r2, r3])
+ratings.collect()
+
+# predict with ALS (Alternating Least Squares)
+model = ALS.train(ratings, rank=10, iterations=10)
+
+# predict ratings
+unrated_rdd = sc.parallelize([(1, 2), (1, 1)])
+predictions = model.predictAll(unrated_rdd)
+predictions.collect()
+
+## randomly split data 
+training, test = data.randomSplit([0.6, 0.4])
+training.collect()
+test.collect()
+
+### EXAMPLE
+# Load the data into RDD
+data = sc.textFile(file_path)
+
+# Split the RDD 
+ratings = data.map(lambda l: l.split(','))
+
+# Transform the ratings RDD 
+ratings_final = ratings.map(lambda line: Rating(int(line[0]), int(line[1]), float(line[2])))
+
+# Split the data into training and test
+training_data, test_data = ratings_final.randomSplit([0.8, 0.2])
+
+### EXAMPLE
+# Create the ALS model on the training data
+model = ALS.train(training_data, rank=10, iterations=10)
+
+# Drop the ratings column 
+testdata_no_rating = test_data.map(lambda p: (p[0], p[1]))
+
+# Predict the model  
+predictions = model.predictAll(testdata_no_rating)
+
+# Print the first rows of the RDD
+predictions.take(2)
+
+## EXAMPLE
+# Prepare ratings data
+rates = ratings_final.map(lambda r: ((r[0], r[1]), r[2]))
+
+# Prepare predictions data
+preds = predictions.map(lambda r: ((r[0], r[1]), r[2]))
+
+# Join the ratings data with predictions data
+rates_and_preds = rates.join(preds)
+
+# Calculate and print MSE
+MSE = rates_and_preds.map(lambda r: (r[1][0] - r[1][1])**2).mean()
+print("Mean Squared Error of the model for the test data = {:.2f}".format(MSE))
+
+### WORKING WITH VECTORS
+# Dense vectors: store all entries as array of floats
+# Sparse vector: store only the nonzero values and indices
+denseVec = Vectors.dense([1.0, 2.0, 3.0])
+sparseVec = Vectors.sparse(4, {1: 1.0, 3: 5.5})
+
+# LabelledPoint(): wrapper for input features and predicted value
+positive = LabeledPoint(1.0, [1.0, 0.0, 3.0])
+negative = LabeledPoint(0.0, [2.0, 1.0, 1.0])
+
+# HashingTF(): algorigthm used to map feature value to indices in the feature vector
+from pyspark.mllib.feature import HashingTF
+sentence = 'hello hello helloooo'
+words = sentence.split()
+tf = HashingTF(10000)
+
+# Logistic Regression
+data = [
+	LabeledPoint(0.0, [0.0, 1.0]),
+	LabeledPoint(1.0, [1.0, 0.0])
+]
+
+RDD = sc.parallelize(data)
+lrm = LogisticRegressionWithLBFGS.train(RDD)
+
+### EXAMPLE
+# Load the datasets into RDDs
+spam_rdd = sc.textFile(file_path_spam)
+non_spam_rdd = sc.textFile(file_path_non_spam)
+
+# Split the email messages into words
+spam_words = spam_rdd.flatMap(lambda email: email.split(' '))
+non_spam_words = non_spam_rdd.flatMap(lambda email: email.split(' '))
+
+# Print the first element in the split RDD
+print("The first element in spam_words is", spam_words.first())
+print("The first element in non_spam_words is", non_spam_words.first())
+
+### EXAMPLE
+# Split the data into training and testing
+train_samples, test_samples = samples.randomSplit([0.8, 0.2])
+
+# Train the model
+model = LogisticRegressionWithLBFGS.train(train_samples)
+
+# Create a prediction label from the test data
+predictions = model.predict(test_samples.map(lambda x: x.features))
+
+# Combine original labels with the predicted labels
+labels_and_preds = test_samples.map(lambda x: x.label).zip(predictions)
+
+# Check the accuracy of the model on the test data
+accuracy = labels_and_preds.filter(lambda x: x[0] == x[1]).count() / float(test_samples.count())
+print("Model accuracy : {:.2f}".format(accuracy))
+
+### INTRODUCTION TO CLUSTERING
+## EXAMPLE
+# Load the dataset into a RDD
+clusterRDD = sc.textFile(file_path)
+
+# Split the RDD based on tab
+rdd_split = clusterRDD.map(lambda x: x.split("\t"))
+
+# Transform the split RDD by creating a list of integers
+rdd_split_int = rdd_split.map(lambda x: [int(x[0]), int(x[1])])
+
+# Count the number of rows in RDD 
+print("There are {} rows in the rdd_split_int dataset".format(rdd_split_int.count()))
+
+### EXAMPLE
+# Train the model with clusters from 13 to 16 and compute WSSSE 
+for clst in range(13, 17):
+    model = KMeans.train(rdd_split_int, clst, seed=1)
+    WSSSE = rdd_split_int.map(lambda point: error(point)).reduce(lambda x, y: x + y)
+    print("The cluster {} has Within Set Sum of Squared Error {}".format(clst, WSSSE))
+
+# Train the model again with the best k 
+model = KMeans.train(rdd_split_int, k=15, seed=1)
+
+# Get cluster centers
+cluster_centers = model.clusterCenters
+
+### EXAMPLE
+# Convert rdd_split_int RDD into Spark DataFrame
+rdd_split_int_df = spark.createDataFrame(rdd_split_int, schema=["col1", "col2"])
+
+# Convert Spark DataFrame into Pandas DataFrame
+rdd_split_int_df_pandas = rdd_split_int_df.toPandas()
+
+# Convert "cluster_centers" that you generated earlier into Pandas DataFrame
+cluster_centers_pandas = pd.DataFrame(cluster_centers, columns=["col1", "col2"])
+
+# Create an overlaid scatter plot
+plt.scatter(rdd_split_int_df_pandas["col1"], rdd_split_int_df_pandas["col2"])
+plt.scatter(cluster_centers_pandas["col1"], cluster_centers_pandas["col2"], color="red", marker="x")
+plt.show()
+
+### INTRODUCTION TO SPARK SQL ######################################################
+## Load from file
+df = spark.read.csv(filename)
+
+## Create SQL table and query it
+df.createOrReplaceTempView('schedule')
+spark.sql("SELECT * FROM schedule").show()
+
+### WINDOW FUNCTION
+query = """
+SELECT train_id, 
+	   station, 
+	   time,
+	   LEAD(time, 1) OVER (PARTITION BY train_id ORDER BY time) AS time_next
+	   FROM sched
+	   WHERE train_id=324
+"""
+
+## EXAMPLE
+# Add col running_total that sums diff_min col in each group
+query = """
+SELECT train_id, station, time, diff_min,
+SUM(diff_min) OVER (PARTITION BY train_id ORDER BY time) AS running_total
+FROM schedule
+"""
+
+# Run the query and display the result
+spark.sql(query).show()
+
+### LOADING NATURAL LANGUAGE TEXT
+df1 = spark.read.load('sherlock.parquet')
+
+# Cleaning text
+df = df1.select(lower(col('value')).alias('v'))
+df = df1.select(regex_replace('value', 'Mr\.', 'Mr').alias('v'))
+
+# Tokenizing Text
+df = df2.select(split('v', '[ ]').alias('words'))
+
+# Discard split characters
+punctuation = "_|.\?\!\",\'\[\]*()"
+df3 = df2.select(split('v', '[ %s]' % punctuation).alias('words'))
+
+# exploding an array
+#  takes array, puts every thing in its own row
+df4 = df3.select(explode('words').alias('word'))
+
+# adding a row id column
+df2 = df.select('word', monotonically_increasing_id().alias('id'))
+
+# partitioning the data
+df2 = df.withColumn('title', 
+	when(df.id < 25000, 'Preface')
+	.when(df.id < 50000, 'Chapter 1')
+	.when(df.id < 75000, 'Chapter 2')
+	.otherwise('Chapter 3')
+	)
+
+# repartioning on a column
+df2 = df.repartition(4, 'part')
+
+# check repartitioning worked
+df2.rdd.getNumPartitions()
+
+# ?
+df.select('part', 'title').distinct().sort('part').show(truncate = False)
+
+# a moving window query
+query = """
+	SELECT id, 
+		   word as w1,
+		   LEAD(word, 1) OVER(PARTITION BY part ORDER BY id) AS w2,
+		   LEAD(word, 2) OVER(PARTITION BY part ORDER BY id) AS w3
+		   FROM df
+"""
+
+spark.sql(query).sort('id').show()
+
+# a window function as a subquery
+query = """
+	SELECT w1, w2, w3, COUNT(*) AS count 
+	FROM (
+		SELECT word as w1,
+			   LEAD(word, 1) OVER (PARTITION BY part ORDER BY id) AS w2,
+			   LEAD(word, 2) OVER (PARTITION BY part ORDER BY id) AS w3
+			   FROM df
+	)
+
+	GROUP BY w1, w2, w3
+	ORDER BY count DESC
+"""
+
+spark.sql(query).sort('id').show()
+
+## EXAMPLE
+# Split the clause column into a column called words 
+split_df = clauses_df.select(split('clause', ' ').alias('words'))
+split_df.show(5, truncate=False)
+
+# Explode the words column into a column called word 
+exploded_df = split_df.select(explode('words').alias('word'))
+exploded_df.show(10)
+
+# Count the resulting number of rows in exploded_df
+print("\nNumber of rows: ", exploded_df.count())
+
+### CACHING
+# keep data in memory
+# eviction policy: least recently used
+# unpersist when you no longer need object & use cache selectively
+
+# Cache a dataframe
+df.cache()
+
+# Uncache a dataframe
+df.unpersist()
+
+# check status
+df.is_cached
+
+# check storage level
+df.storageLevel
+
+# caching a table
+print("Tables:\n", spark.catalog.listTables())
+df.createOrReplaceTempView('df')
+spark.catalog.cacheTable('df')
+spark.catalog.isCached(tableName='df')
+spark.catalog.uncacheTable('df')
+spark.catalog.clearCache()
+spark.catalog.dropTempView('df') #removes df from catalog
+
+### SPARK UI
+## Spark Task: unit of execution that runs on a single cpu
+## Spark Stage: group of tasks that perform the same computation in parallel
+## Finding the Spark UI: 
+# http://[DRIVER_HOST]:4040
+
+### LOGGING
+import logging
+logging.basicConfig(stream = sys.stdout, 
+					level = logging.INFO,
+					format = '%(asctime)s - %(levelname)s - %(message)s')
+logging.info("Hello %s", "world") # prints
+logging.debug("Hello, take %d", 2) # does not print with logging.INFO
+
+logging.basicConfig(stream = sys.stdout, 
+					level = logging.DEBUG,
+					format = '%(asctime)s - %(levelname)s - %(message)s')
+logging.info("Hello %s", "world") # prints
+logging.debug("Hello, take %d", 2) # ALSO prints with logging.DEBUG
+
+
+## Debbuging lazy evaluation
+# can be hard to find bugs with lazy evaluation: bug only shows up
+# much later down stream
+
+## Timer
+t = timer()
+t.elapsed()
+t.reset()
+
+## Stealth CPU wastage
+t = timer()
+logging.info('nothing here')
+t.elapsed() # 0 sec
+logging.debug("df has %d rows.", df.count())
+t.elapsed() # 2 secs
+
+# issue here is df.count() takes time up even tho logging.debug() does not print
+
+# can control this with a logical value
+ENABLED = False
+
+t = timer()
+logging.info('nothing here')
+t.elapsed() # 0 sec
+if ENABLED:
+	logging.debug("df has %d rows.", df.count())
+t.elapsed() # 2 secs
+
+## Other logging statements
+logging.warning()
+logging.error()
+
+## Triggering actions
+# first() and collect() trigger actions on dfs
+# collect on SHOW TABLES query does not
+
+### QUERY PLANS
+spark.sql('EXPLAIN SELECT * FROM table1').first()
+#.explain()
+
+### EXTRACT TRANSFORM SELECT
+from pyspark.sql.functions import split, explode, length, udf
+df.where(length('sentence') == 0)
+
+## USER DEFINED FUNCTION (UDF)
+from pyspark.sql.types import BooleanType
+
+short_udf = udf(lambda x:
+							True if not x or len(x) < 10 else False,
+							BooleanType())
+
+df.select(short_udf('textdata').alias("is short")).show(3)
+
+## other return types: StringType, IntegerType, FloatType, ArrayType
+## Sparse vector format
+# returns count of elements, and position of non zero elements
+# array: [1.0, 0.0, 0.0, 3.0] 
+# sparse vector: (4, [0, 3], [1.0, 3.0])
+
+## hasattr(x, "toArray"): checks object is array
+## x.numNonzeros(): checks object is non empty
+
+
+## EXAMPLE
+# Show the rows where doc contains the item '5'
+df_before.where(array_contains('doc', '5')).show()
+
+# UDF removes items in TRIVIAL_TOKENS from array
+rm_trivial_udf = udf(lambda x:
+                     list(set(x) - TRIVIAL_TOKENS) if x
+                     else x,
+                     ArrayType(StringType()))
+
+# Remove trivial tokens from 'in' and 'out' columns of df2
+df_after = df_before.withColumn('in', rm_trivial_udf('in'))\
+                    .withColumn('out', rm_trivial_udf('out'))
+
+# Show the rows of df_after where doc contains the item '5'
+df_after.where(array_contains('doc','5')).show()
+
+### CREATING FEATURE DATA FOR CLASSIFICATION
+## Fitting Count Vectorizer
+from pyspark.ml.feature import CountVectorizer
+
+cv = CountVectorizer(inputCol = 'words', outputCol = 'features')
+model = cv.fit(df)
+result = model.transform(df)
+print(result)
+
+### CLASSIFYING TEXT
+
+### EXAMPLE
+# Selects the first element of a vector column
+first_udf = udf(lambda x:
+            float(x.indices[0]) if (x and hasattr(x, "toArray") and x.numNonzeros())
+            else 0.0,
+            FloatType())
+
+# Apply first_udf to the output column
+df.select(first_udf("output").alias("result")).show(5)
+
+# Add label by applying the get_first_udf to output column
+df_new = df.withColumn('label', get_first_udf('output'))
+
+# Show the first five rows 
+df_new.show(5)
+
+# Transform df using model
+result = model.transform(df.withColumnRenamed('in', 'words'))\
+        .withColumnRenamed('words', 'in')\
+        .withColumnRenamed('vec', 'invec')
+result.drop('sentence').show(3, False)
+
+# Add a column based on the out column called outvec
+result = model.transform(result.withColumnRenamed('out', 'words'))\
+        .withColumnRenamed('words', 'out')\
+        .withColumnRenamed('vec', 'outvec')
+result.select('invec', 'outvec').show(3, False)	
+
+### EXAMPLE
+# Import the lit function
+from pyspark.sql.functions import lit
+
+# Select the rows where endword is 'him' and label 1
+df_pos = df.where("endword = 'him'")\
+           .withColumn('label', lit(1))
+
+# Select the rows where endword is not 'him' and label 0
+df_neg = df.where("endword <> 'him'")\
+           .withColumn('label', lit(0))
+
+# Union pos and neg in equal number
+df_examples = df_pos.union(df_neg.limit(df_pos.count()))
+print("Number of examples: ", df_examples.count())
+df_examples.where("endword <> 'him'").sample(False, .1, 42).show(5)
+
+# Split the examples into train and test, use 80/20 split
+df_trainset, df_testset = df_examples.randomSplit(([0.8, 0.2]), 42)
+
+# Print the number of training examples
+print("Number training: ", df_trainset.count())
+
+# Print the number of test examples
+print("Number test: ", df_testset.count())
+
+# Train model
+from pyspark.ml.classification import LogisticRegression
+
+logistic = LogisticRegression(maxIter=50, regParam=0.6, elasticNetParam=0.3)
+model = logistic.fit(df_train)
+print("Training iterations: ", model.summary.totalIterations)
+
+### PREDICTING AND EVALUATING
+## prediction column: double
+## probability: vector of length two
+predicted = df_trained.transform(df_test)
+x = predicted.first
+sum(x.label == int(x.prediction)) #correct predictions
+
+# Area Under Curve (AUC)
+model_stats = model.evaluate(df_eval)
+type(model_Stats) #log summary object
+print('Accuracy: %.2f' % model_stats.areaUnderROC)

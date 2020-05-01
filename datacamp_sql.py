@@ -1513,3 +1513,8 @@ FROM
   FROM web_data
   GROUP BY date) AS subquery
 ORDER BY date DESC;
+
+### DATABASE DESIGN ######################################################
+### OLTP & OLAP
+## OLTP : application-oriented, simple transactions & frequent updates
+## OLAP : complex, agg queries, limited updates
