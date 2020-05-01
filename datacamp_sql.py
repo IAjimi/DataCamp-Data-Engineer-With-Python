@@ -1518,3 +1518,52 @@ ORDER BY date DESC;
 ### OLTP & OLAP
 ## OLTP : application-oriented, simple transactions & frequent updates
 ## OLAP : complex, agg queries, limited updates
+
+### STAR SCHEMA
+## FACT TABLES
+# hold record of metric, changes regularly, connects to dimensions via foreign keys
+
+## DIMENSION TABLES
+# holds description of attributes, does not change as often
+
+## NORMALIZATION
+# divide tables into smaller tables, connect them via relationship
+# goal is to reduce redundancy and increase data integrity
+# drawback: a lot of joins necessary to get full data back, but quicker
+# better on OLTP (operational) databases (write-intensive, helps safer insertion of data)
+
+
+### DATABASE VIEWS
+SELECT * FROM INFORMATION_SCHEMA.views #to see all views
+
+#-- Create a view for reviews with a score above 9
+CREATE VIEW high_scores AS
+SELECT * FROM REVIEWS
+WHERE score > 9;
+
+#-- Count the number of self-released works in high_scores
+SELECT COUNT(*) FROM high_scores
+INNER JOIN labels ON labels.reviewId = high_scores.reviewId
+WHERE label = 'self-released';
+
+# CASCADE can get rid of multiple views
+DROP VIEW top_15_2017 CASCADE;
+
+## privileges 
+#-- Revoke everyone's update and insert privileges
+REVOKE INSERT, UPDATE ON long_reviews FROM PUBLIC; 
+
+#-- Grant the editor update and insert privileges 
+GRANT INSERT, UPDATE ON long_reviews TO editor; 
+
+## UPDATING / REPLACING VIEWS
+#-- Redefine the artist_title view to have a label column
+CREATE OR REPLACE VIEW artist_title AS
+SELECT reviews.reviewid, reviews.title, artists.artist, labels.label
+FROM reviews
+INNER JOIN artists
+ON artists.reviewid = reviews.reviewid
+INNER JOIN labels
+ON labels.reviewid = reviews.reviewid;
+
+SELECT * FROM artist_title;
