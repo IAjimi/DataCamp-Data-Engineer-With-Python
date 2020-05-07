@@ -1,28 +1,27 @@
-### SQL NOTES
+### SQL DATACAMP NOTES ########################################################################3
 # return 5 rows
-'''SELECT TOP(5) artist
-FROM artists;'''
+SELECT TOP(5) artist
+FROM artists;
 
 # return top 5% of rows
-'''SELECT TOP(5) PERCENT artist
-FROM artists;'''
+SELECT TOP(5) PERCENT artist
+FROM artists;
 
 # rename columns
-'''SELECT demand_loss_mw AS lost_demand
-from grid;'''
+SELECT demand_loss_mw AS lost_demand
+from grid;
 
-## CAN USE 'where'
+## CAN USE 'where' to filter
 SELECT *
 FROM album
 WHERE artist_id IN (1, 3)
 
-## WORKING WITH STRINGS
--- Complete the substring function to begin extracting from the correct character in the description column
+### WORKING WITH STRINGS
 SELECT TOP (10)
   description, 
-  CHARINDEX('Weather', description) AS start_of_string, 
-  LEN ('Weather') AS length_of_string, 
-  SUBSTRING(
+  CHARINDEX('Weather', description) AS start_of_string, # position of substring within string
+  LEN ('Weather') AS length_of_string, # length of string
+  SUBSTRING(                                            # subset string  
     description, 
     15, 
     LEN(description)
@@ -31,14 +30,10 @@ FROM
   grid
 WHERE description LIKE '%Weather%';
 
-# charindex returns position of substring within string
-# len returns length of string
-# substring subsets string
+### GROUPS
+## filter groupby objects with HAVING
 
-## GROUPS
-# filter groupby objects with HAVING
-
-## INNER JOIN
+### INNER JOIN
 SELECT
 	table_a.columnX,
 	table_a.columny,
@@ -47,8 +42,8 @@ FROM
 	table_a
 INNER JOIN table_b on table_b.foreign_key = table_a.primary_key;
 
-## COMBINING SIMILAR TABLES
-# same columns, same datasets
+### COMBINING SIMILAR TABLES
+# need same columns
 SELECT *
 FROM album
 UNION
@@ -59,33 +54,34 @@ WHERE ...
 # UNION returns DISTINCT rows
 # UNION ALL returns ALL, including duplicates
 
-## CRUD
+### CRUD
+# Create table
 CREATE TABLE table_name(
 	col1name int,
 	col2name varchar(20)
 	)
 
-##
+# Insert into table
 INSERT INTO table_name
 	(col1name, col2name)
 VALUES
 	(val1, val2)
 
-##
+# Update table
 UPDATE table_name
 SET column_name = value,
 WHERE ...
 ..
 
-## Delete
+# Delete
 DELETE 
 FROM table_name
 WHERE ...
 
-## 
+# another way to delete entries
 TRUNCATE TABLE table_name
 
-## CAN USE DECLARE TO SAVE VARIABLES?
+### Saving variables with DECLARE
 DECLARE @start DATE
 DECLARE @stop DATE
 DECLARE @affected INT;
@@ -104,11 +100,10 @@ FROM
 WHERE event_date BETWEEN @start AND @stop
 AND affected_customers >= @affected;
 
-## TEMPORARY TABLES
+### TEMPORARY TABLES
 # saving results of a query by creating a temporary
 # table that remains in DB until SQL server is restarted
 # NAMING is done with #
-
 SELECT  album.title AS album_title,
   artist.name as artist,
   MAX(track.milliseconds / (1000 * 60) % 60 ) AS max_track_length_mins
@@ -117,7 +112,7 @@ FROM album
 INNER JOIN artist ON album.artist_id = artist.artist_id
 JOIN track ON track.album_id = album.album_id
 GROUP BY artist.artist_id, album.title, artist.name,album.album_id
--- Run the final SELECT query to retrieve the results from the temporary table
+
 SELECT album_title, artist, max_track_length_mins
 FROM  #maxtracks
 ORDER BY max_track_length_mins DESC, artist;
@@ -186,6 +181,7 @@ ADD CONSTRAINT some_name UNIQUE(column_name);
 
 ## WHAT IS a key? attribute(s) that identify a record uniquely
 # superkey: # of distinct records = # of rows
+
 #-- Rename the organization column to id
 ALTER TABLE organizations
 RENAME COLUMN organization TO id;
@@ -195,7 +191,6 @@ ALTER TABLE organizations
 ADD CONSTRAINT organization_pk PRIMARY KEY (id);
 
 ## AUTO INCREMENTING records
--- Add the new column to the table
 ALTER TABLE professors 
 ADD COLUMN id serial;
 
@@ -285,18 +280,6 @@ DROP CONSTRAINT affiliations_organization_id_fkey;
 ALTER TABLE affiliations
 ADD CONSTRAINT affiliations_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations (id) ON DELETE CASCADE;
 
-
-##
--- Count the total number of affiliations per university
-SELECT COUNT(*), professors.university_id 
-FROM professors
-JOIN affiliations
-ON affiliations.professor_id = professors.id
--- Group by the ids of professors
-GROUP BY professors.university_id 
-ORDER BY count DESC;
-
-
 ############### BUSINESS ANALYSIS IN SQL ###################
 ## EXPLORATORY DATA ANALYSIS IN SQL (PostgresSQL)
 # Database Client: program to access Database clients
@@ -318,19 +301,7 @@ FROM fortune500;
 # then coalesce(col1, col2) = [10, NULL, 22, 3]
 # can specify fallback value when NULL: coalesce(col1, col2, 0) = [10, 0, 22, 3]
 
-#-- Select the 3 columns desired
-SELECT company.name, tag_type.tag, tag_type.type
-  FROM company
-  	   -- Join to the tag_company table
-       INNER JOIN tag_company 
-       ON company.id = tag_company.company_id
-       -- Join to the tag_type table
-       INNER JOIN tag_type
-       ON tag_company.tag = tag_type.tag
-  -- Filter to most common type
-  WHERE type='cloud';
 
-  #
   SELECT company_original.name, fortune500.title, fortune500.rank
   #-- Start with original company information
   FROM company AS company_original
@@ -345,7 +316,6 @@ SELECT company.name, tag_type.tag, tag_type.type
        ON coalesce(company_original.ticker, 
                    company_parent.ticker) = 
              fortune500.ticker
- #-- For clarity, order by rank
  ORDER BY rank; 
 
  ### Casting with CAST()
@@ -361,12 +331,10 @@ GROUP BY revenues_change::integer
  ## SUMMARY STATISTICS
  # VARIANCE: var_pop(), var_samp(), stddev_samp(), ...
 
-# -- Select average revenue per employee by sector
 SELECT sector,
        avg(revenues/employees::numeric) AS avg_rev_employee
   FROM fortune500
  GROUP BY sector
-#-- Use the column alias to order the results
  ORDER BY avg_rev_employee;
 
 # -- Select sector and summary measures of fortune500 profits
@@ -381,11 +349,8 @@ SELECT sector,
 
  ## SUBQUERY
 SELECT stddev(maxval),
-	   -- min
        min(maxval),
-       -- max
        max(maxval),
-       -- avg
        avg(maxval)
   FROM (SELECT max(question_count) AS maxval
           FROM stackoverflow
@@ -422,12 +387,13 @@ ORDER BY lower;
 WITH bins AS (
       SELECT generate_series(2200, 3050, 50) AS lower,
              generate_series(2250, 3100, 50) AS upper),
-     -- Subset stackoverflow to just tag dropbox (Step 1)
+     #-- Subset stackoverflow to just tag dropbox (Step 1)
      dropbox AS (
       SELECT question_count 
         FROM stackoverflow
        WHERE tag='dropbox') 
 #-- Select columns for result
+
 #-- What column are you counting to summarize?
 SELECT lower, upper, count(question_count) 
   FROM bins  #-- Created above
@@ -1546,17 +1512,11 @@ SELECT COUNT(*) FROM high_scores
 INNER JOIN labels ON labels.reviewId = high_scores.reviewId
 WHERE label = 'self-released';
 
-# CASCADE can get rid of multiple views
-DROP VIEW top_15_2017 CASCADE;
+### UPDATING / REPLACING VIEWS
+## not all views are updatable
+# view must be made up of 1 table, doesn't use a window or agg fct
+## not all views are insertable
 
-## privileges 
-#-- Revoke everyone's update and insert privileges
-REVOKE INSERT, UPDATE ON long_reviews FROM PUBLIC; 
-
-#-- Grant the editor update and insert privileges 
-GRANT INSERT, UPDATE ON long_reviews TO editor; 
-
-## UPDATING / REPLACING VIEWS
 #-- Redefine the artist_title view to have a label column
 CREATE OR REPLACE VIEW artist_title AS
 SELECT reviews.reviewid, reviews.title, artists.artist, labels.label
@@ -1567,3 +1527,206 @@ INNER JOIN labels
 ON labels.reviewid = reviews.reviewid;
 
 SELECT * FROM artist_title;
+
+# CASCADE can get rid of multiple views
+DROP VIEW top_15_2017 CASCADE;
+
+# by default, DROP VIEW runs with RESTRICT: returns an error if 
+# any objects depend on the view
+
+## Redefining a view
+CREATE OR REPLACE view_name AS new_query
+
+### Privileges 
+#-- Revoke everyone's update and insert privileges
+REVOKE INSERT, UPDATE ON long_reviews FROM PUBLIC; 
+
+#-- Grant the editor update and insert privileges 
+GRANT INSERT, UPDATE ON long_reviews TO editor; 
+
+## MATERIALIZED VIEWS
+# materialized = 'physical'
+# store the query results, not the query
+# consumes more storage
+# for long running queries, where underlying result doesnt change often
+
+CREATE MATERIALIZED VIEW my_view AS SELECT * FROM table_name;
+
+REFRESH MATERIALIZED VIEW my_view;
+
+## NON-MATERIALIZED VIEWS
+# the views we've defined so far
+# gets refreshed so always returns up-to-date data
+# better for write-intensive databases
+
+### DATABASE ROLES AND ACCESS CONTROL
+## Group Role
+CREATE ROLE data_analyst;
+
+## User Role with some attributes set
+CREATE ROLE alex WITH PASSWORD 'PasswordForIntern' VALID UNTIL '2020-01-01';
+GRANT data_analyst TO alex;
+REVOKE data_analyst FROM alex;
+
+CREATE ROLE admin CREATEDB;
+
+## Partitioning
+# reducing size of large dbs
+# e.g., creating new, smaller dbs for each quarter of the year
+CREATE TABLE film_partitioned (
+  film_id INT,
+  title TEXT NOT NULL,
+  release_year TEXT
+)
+PARTITION BY LIST (release_year);
+
+#-- Create the partitions for 2019, 2018, and 2017
+CREATE TABLE film_2019
+	PARTITION OF film_partitioned FOR VALUES IN ('2019');
+
+CREATE TABLE film_2018
+	PARTITION OF film_partitioned FOR VALUES IN ('2018');
+
+CREATE TABLE film_2017
+	PARTITION OF film_partitioned FOR VALUES IN ('2017');
+
+#-- Insert the data into film_partitioned
+INSERT INTO film_partitioned
+SELECT film_id, title, release_year FROM film;
+
+#-- View film_partitioned
+SELECT * FROM film_partitioned;
+
+### IMPROVING QUERY PERFORMANCE IN SQL ######################################################
+### PROCESSING ORDER
+## Error messages come by processing order
+# 1. FROM
+# 2. WHERE
+# 3. SELECT
+# 4. ORDER BY
+
+## Generally
+# 1. FROM
+# 2. ON
+# 3. JOIN
+# 4. WHERE
+# 5. GROUP BY
+# 6. HAVING
+
+# 7. SELECT
+
+# 8. DISTINCT
+# 9. ORDER BY
+# 10. TOP
+
+## It can be more efficient to use filters with agg after?
+SELECT PlayerName, 
+       Team, 
+       Position, 
+       AvgRebounds
+FROM                          
+	(SELECT 
+      PlayerName, 
+      Team, 
+      Position,
+     (DRebound+ORebound)/CAST(GamesPlayed AS numeric) AS AvgRebounds
+	 FROM PlayerStats) AS tr
+WHERE AvgRebounds >= 12;
+
+# INNER JOINS can be more time efficient than correlated SUBQUERIES
+# EXCEPT does the opposite of INTERSECT. It is used to check if data, present in one table, is absent in another.
+
+# EXISTS will stop searching when condition is TRUE
+# IN collects all results
+# ---> IN might be slower
+
+# NOT IN : if the columns in the sub-query being evaluated for a non-match contain NULL values, no results are returned.
+#  A workaround to get the query working correctly is to use IS NOT NULL in a WHERE filter condition in the sub-query.
+
+# An inclusive LEFT OUTER JOIN returns all the rows in the left query, whereas an exclusive LEFT OUTER JOIN returns only rows in the left query that are absent 
+# in the right query.
+
+SET STATISTICS TIME ON
+
+## Page read statistics
+SET STATISTICS IO ON
+# all data is stored in 8 kilobyte pages
+# one page can store many rows or one value could span multiple pages
+# a page can only belong to one table
+# SQL server works with pages cached in memory
+## STATISTICS TIME logical reads tells you how many kb required
+
+# Logical reads are a measure of the number of the 8-kilobyte pages read from 
+# memory to process and return the results of your query. 
+# In general, the more pages that need to be read the slower your query will run.
+
+
+### Index
+## applied to table columns
+## structure to improve speed of accessing data
+## Clustered: like a dictionary, only one per table
+## Non-clustered: like textbook with index in the back, can have multiple per table
+
+# This affects the order in pages are stored and therefore query speed 
+
+### Optimizing execution plans
+## evalutes multiple execution plans, selects the one optimized for lowest cost
+## looking at processor usage, memory usage, data page reads
+## can be done with SMSS
+## no information about query time however
+
+### Building and Optimizing Triggers in SQL Server ######################################################
+### Data Manipulation Language trigger
+# INSERT, UPDATE, DELETE
+### Data Definition Language
+# CREATE, ALTER, or DROP
+### Logon triggers
+# LOGON
+### INSTEAD OF trigger
+## stops the original trigger from being executed
+## uses replacement statement instead
+# e.g., prevent insertions, updates, deletions, object modifications
+
+### Adds actions after trigger event
+CREATE TRIGGER ProductsTrigger
+ON Products # needs to be attached to a table
+AFTER INSERT # trigger behavior type
+AS # action executed by the trigger
+PRINT ('An insert blabla') 	
+
+### Blocks event
+CREATE TRIGGER ProductsTrigger
+ON Products # needs to be attached to a table
+INSTEAD OF UPDATE # trigger behavior type
+AS # action executed by the trigger
+PRINT ('An insert blabla') 
+
+### Triggers vs stored procedures
+## Triggers
+# fired automatically by event
+# dont allow parameters or transactions
+# cannot return values as outputs
+
+## Stored procedures
+# run only when called explicitly
+# accept input parameters and transactions
+# can return values as outputs
+
+## Computed columns
+# cant use columns from other tables
+
+### EXAMPLE
+#-- Create a new trigger to keep track of discounts
+CREATE TRIGGER CustomerDiscountHistory
+ON Discounts
+AFTER UPDATE
+AS
+	#-- Store old and new values into the `DiscountsHistory` table
+	INSERT INTO DiscountsHistory (Customer, OldDiscount, NewDiscount, ChangeDate)
+	SELECT i.Customer, d.Discount, i.Discount, GETDATE()
+	FROM inserted AS i
+	INNER JOIN deleted AS d ON i.Customer = d.Customer;
+
+### INSTEAD OF
+## performs instead of DML event, which does not run anymore
+## used with INSERT, UPDATE, DELETE statements
