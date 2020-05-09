@@ -3114,3 +3114,4 @@ sum(x.label == int(x.prediction)) #correct predictions
 model_stats = model.evaluate(df_eval)
 type(model_Stats) #log summary object
 print('Accuracy: %.2f' % model_stats.areaUnderROC)
+
