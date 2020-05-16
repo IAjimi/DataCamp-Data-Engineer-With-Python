@@ -1864,7 +1864,8 @@ CREATE TRIGGER PreventProductChanges
 ON Products
 INSTEAD OF UPDATE
 AS
-	RAISERROR ('Updates of products are not permitted. Contact the database administrator if a change is needed.', 
+	RAISERROR ('Updates of products are not permitted. \
+		Contact the database administrator if a change is needed.', 
 		16, 1);
 
 ## with conditional statements
@@ -1904,16 +1905,16 @@ ON DATABASE
 -- Fire the trigger for all tables/ views events
 FOR DDL_TABLE_VIEW_EVENTS
 AS
-	-- Add details to the specified table
-	INSERT INTO DatabaseAudit (EventType, DatabaseName, SchemaName, Object, ObjectType, UserAccount, Query, EventTime)
-	SELECT EVENTDATA().value('(/EVENT_INSTANCE/EventType)[1]', 'NVARCHAR(50)') AS EventType
-		  ,EVENTDATA().value('(/EVENT_INSTANCE/DatabaseName)[1]', 'NVARCHAR(50)') AS DatabaseName
-		  ,EVENTDATA().value('(/EVENT_INSTANCE/SchemaName)[1]', 'NVARCHAR(50)') AS SchemaName
-		  ,EVENTDATA().value('(/EVENT_INSTANCE/ObjectName)[1]', 'NVARCHAR(100)') AS Object
-		  ,EVENTDATA().value('(/EVENT_INSTANCE/ObjectType)[1]', 'NVARCHAR(50)') AS ObjectType
-		  ,EVENTDATA().value('(/EVENT_INSTANCE/LoginName)[1]', 'NVARCHAR(100)') AS UserAccount
-		  ,EVENTDATA().value('(/EVENT_INSTANCE/TSQLCommand/CommandText)[1]', 'NVARCHAR(MAX)') AS Query
-		  ,EVENTDATA().value('(/EVENT_INSTANCE/PostTime)[1]', 'DATETIME') AS EventTime;
+-- Add details to the specified table
+INSERT INTO DatabaseAudit (EventType, DatabaseName, SchemaName, Object, ObjectType, UserAccount, Query, EventTime)
+SELECT EVENTDATA().value('(/EVENT_INSTANCE/EventType)[1]', 'NVARCHAR(50)') AS EventType
+	  ,EVENTDATA().value('(/EVENT_INSTANCE/DatabaseName)[1]', 'NVARCHAR(50)') AS DatabaseName
+	  ,EVENTDATA().value('(/EVENT_INSTANCE/SchemaName)[1]', 'NVARCHAR(50)') AS SchemaName
+	  ,EVENTDATA().value('(/EVENT_INSTANCE/ObjectName)[1]', 'NVARCHAR(100)') AS Object
+	  ,EVENTDATA().value('(/EVENT_INSTANCE/ObjectType)[1]', 'NVARCHAR(50)') AS ObjectType
+	  ,EVENTDATA().value('(/EVENT_INSTANCE/LoginName)[1]', 'NVARCHAR(100)') AS UserAccount
+	  ,EVENTDATA().value('(/EVENT_INSTANCE/TSQLCommand/CommandText)[1]', 'NVARCHAR(MAX)') AS Query
+	  ,EVENTDATA().value('(/EVENT_INSTANCE/PostTime)[1]', 'DATETIME') AS EventTime;
 
 ## other
 -- Create a trigger to prevent database deletion
@@ -1922,26 +1923,86 @@ CREATE TRIGGER PreventDatabaseDelete
 ON ALL SERVER
 FOR DROP_DATABASE
 AS
-   PRINT 'You are not allowed to remove existing databases.';
-   ROLLBACK;
+PRINT 'You are not allowed to remove existing databases.';
+ROLLBACK;
 
- ### DELETING AND ALTERING TRIGGERS
- ## Deleting
- DROP TRIGGER PreventNewDiscounts;
+### DELETING AND ALTERING TRIGGERS
+## Deleting
+DROP TRIGGER PreventNewDiscounts;
 
- # if on database
- DROP TRIGGER PreventViewsModifications
- ON DATABASE;
+# if on database
+DROP TRIGGER PreventViewsModifications
+ON DATABASE;
 
- # if on server
- DROP TRIGGER DisallowLinkedServers
- ON ALL SERVERS;
+# if on server
+DROP TRIGGER DisallowLinkedServers
+ON ALL SERVER;
 
- ## Disabled
- # if on table
- DISABLE TRIGGER PreventNewDiscounts
- ON Discounts;
+## Disabled
+# if on table
+DISABLE TRIGGER PreventNewDiscounts
+ON Discounts;
 
- ## Renable
- ENABLE TRIGGER PreventNewDiscounts
- ON Discounts;
+## Renable
+ENABLE TRIGGER PreventNewDiscounts
+ON Discounts;
+
+## Altering triggers
+CREATE TRIGGER PreventNewDiscounts
+ON Discounts
+INSTEAD OF DELETE
+AS 
+	PRINT 'some message';
+
+### Trigger management
+## getting info from sys.triggers
+SELECT * FROM sys.trigger_events;
+SELECT * FROM sys.server_trigger_events;
+
+#-- Get the disabled triggers
+SELECT name,
+	   object_id,
+	   parent_class_desc
+FROM sys.triggers
+WHERE is_disabled = 1;
+
+### Troubleshooting triggers
+# Tracking trigger executions
+CREATE TRIGGER PreventOrdersUpdate
+
+## Example
+-- Modify the trigger to add new functionality
+ALTER TRIGGER PreventOrdersUpdate
+ON Orders
+-- Prevent any row changes
+INSTEAD OF UPDATE
+AS
+	-- Keep history of trigger executions
+	INSERT INTO TriggerAudit (TriggerName, ExecutionDate)
+	SELECT 'PreventOrdersUpdate', 
+           GETDATE();
+
+	RAISERROR ('Updates on "Orders" table are not permitted.\
+                Place a new order to add new products.', 16, 1);
+
+## Example
+-- Get the table ID
+SELECT object_id AS TableID
+FROM sys.objects
+WHERE name = 'Orders';
+
+-- Get the trigger name
+SELECT t.name AS TriggerName
+FROM sys.objects AS o
+-- Join with the triggers table
+INNER JOIN sys.triggers AS t ON t.parent_id = o.object_id
+WHERE o.name = 'Orders';
+
+SELECT t.name AS TriggerName
+FROM sys.objects AS o
+INNER JOIN sys.triggers AS t ON t.parent_id = o.object_id
+-- Get the trigger events
+INNER JOIN sys.trigger_events AS te ON te.object_id = t.parent_id
+WHERE o.name = 'Orders'
+-- Filter for triggers reacting to new rows
+AND te.type_desc = 'INSERT';

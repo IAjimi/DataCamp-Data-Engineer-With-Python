@@ -3115,3 +3115,447 @@ model_stats = model.evaluate(df_eval)
 type(model_Stats) #log summary object
 print('Accuracy: %.2f' % model_stats.areaUnderROC)
 
+
+### CLEANING DATA WITH PYSPARK ######################################################
+### Spark Schemas
+## define the format of a DataFrame (makes it easier to verify format, filter
+## garbage data during import + improves read performance)
+
+# Define schema
+import pyspark.sql.types
+peopleSchema = StructType([
+	StructField('name', StringType(), True), # True: can be null
+	StructField('age', IntegerType(), True),
+	StructField('city', StringType(), True)
+])
+
+# Read in csv
+people_df = spark.read.format('csv').load(name='rawdata.csv', schema=peopleSchema)
+
+### Parquet files
+## problems with csv files: no defined schema, limited encoding, slow to parse
+## parquet: columnar format, automatically stores schema information
+
+# Reading Parquet files
+df = spark.read.format('parquet').load('filename.parquet')
+df = spark.read.parquet('filename.parquet')
+
+# Writing Parquet files
+df.write.format('parquet').save('filename.parquet')
+df.write.parquet('filename.parquet')
+
+# Parquet as backing stores for SparkSQL operations
+flight_df = spark.read.parquet('flights.parquet')
+flight_df.createOrReplaceTempView('flights')
+short_flights_df = spark.sql('SELECT * FROM flights WHERE flightduration < 100')
+
+### Manipulating DFs
+voter_df.filter(voter_df['name'].isNotNull())
+voter_df.filter(voter_df.date.year > 1800)
+voter_df.where(voter_df['_c0'].contains('VOTE'))
+voter_df.where(~ voter_df._c1.isNull())
+
+## ArrayType() functions
+# .size(<column>) - returns length of arrayType() column
+# .getItem(<index>) - used to retrieve a specic item at index oflist column.
+
+### Conditional DataFrame column operations
+# .when()
+df.select(df.Name, df.Age, F.when(df.Age >= 18, "Adult"))
+
+df.select(df.Name, df.Age,
+		.when(df.Age >= 18, "Adult")
+		.when(df.Age < 18, "Minor"))
+
+
+# .otherwise() : like else
+df.select(df.Name, df.Age,
+		.when(df.Age >= 18, "Adult")
+		.otherwise("Minor"))
+
+### User Defined Functions
+## Example
+def reverseString(mystr):
+	return mystr[::-1]
+
+udfReverseString = udf(reverseString, StringType())
+
+user_df = user_df.withColumn('ReverseName', udfReverseString(user_df.Name))
+
+### Partitioning and lazy processing
+# Add a new column called splits separated on whitespace
+voter_df = voter_df.withColumn('splits', F.split(voter_df.VOTER_NAME, '\s+'))
+
+# Create a new column called first_name based on the first item in splits
+voter_df = voter_df.withColumn('first_name', voter_df.splits.getItem(0))
+
+# Get the last entry of the splits list and create a column called last_name
+voter_df = voter_df.withColumn('last_name', voter_df.splits.getItem(F.size('splits') - 1))
+
+# Drop the splits column
+voter_df = voter_df.drop('splits')
+
+# Show the voter_df DataFrame
+voter_df.show()
+
+# Add a column to voter_df for any voter with the title **Councilmember**
+voter_df = voter_df.withColumn('random_val',
+                               when(voter_df.TITLE == 'Councilmember', F.rand()))
+
+# Show some of the DataFrame rows, noting whether the when clause worked
+voter_df.show()
+
+### EXAMPLE
+# Select all the unique council voters
+voter_df = df.select(df["VOTER NAME"]).distinct()
+
+# Count the rows in voter_df
+print("\nThere are %d rows in the voter_df DataFrame.\n" % voter_df.count())
+
+# Add a ROW_ID
+voter_df = voter_df.withColumn('ROW_ID', F.monotonically_increasing_id())
+
+# Show the rows with 10 highest IDs in the set
+voter_df.orderBy(voter_df.ROW_ID.desc()).show(10)
+
+## 
+
+# Print the number of partitions in each DataFrame
+print("\nThere are %d partitions in the voter_df DataFrame.\n" % voter_df.rdd.getNumPartitions())
+print("\nThere are %d partitions in the voter_df_single DataFrame.\n" % voter_df_single.rdd.getNumPartitions())
+
+# Add a ROW_ID field to each DataFrame
+voter_df = voter_df.withColumn('ROW_ID', F.monotonically_increasing_id())
+voter_df_single = voter_df_single.withColumn('ROW_ID', F.monotonically_increasing_id())
+
+# Show the top 10 IDs in each DataFrame 
+voter_df.____(voter_df.____.desc()).show(____)
+____.orderBy(____).show(10)
+
+## EXAMPLE
+# Determine the highest ROW_ID and save it in previous_max_ID
+previous_max_ID = voter_df_march.select('ROW_ID').rdd.max()[0]
+
+# Add a ROW_ID column to voter_df_april starting at the desired value
+voter_df_april = voter_df_april.withColumn('ROW_ID', previous_max_ID + F.monotonically_increasing_id())
+
+# Show the ROW_ID from both DataFrames and compare
+voter_df_march.select('ROW_ID').show()
+voter_df_april.select('ROW_ID').show()
+
+### CACHING
+## Advantages
+# stores DFs in memory or on disk
+# improves speed on later transformations / actions
+# reduces resource usage
+
+## Disavantages
+# very large datasets may not fit in memrory
+# local disk caching may not be a performance improvement
+# cached objects may not be available
+
+## Tips
+# only cache if needed
+# cache at different points to see if performance improves
+# use intermediate files
+# stop caching objects when finished
+
+## Implementing caching
+voter_df = spark.read.csv('voter_data.txt.gz')
+voter_df.cache().count()
+print(voter_df.is_cached)
+
+### SPARK CLUSTERS
+# driver processes and worker processes
+# using split files runs more quickly than using one large file for import
+# in certain circumstances the results may be reversed: this is a side 
+# effect of running as a single node cluster
+
+## Cluster Types
+# single node, standalone, managed (yarn, mesos, kubernetes)
+
+## Driver
+# task assignment, result consolidation, shared data access
+# driver node should have double the memory of the worker
+
+## Worker
+# runs actual tasks
+# more worker nodes better than larger workers
+# test to find balance
+
+## Shuffling
+# moving data around to different workers to complete tasks
+# necessary but try to minimize by limit using of .repartition(num_partitions)
+# if need to decrease partitions, use .coalesce(num_partitions)
+# be careful with .join()
+
+## Broadcasting
+# provides a copy of an object ot each worker
+# prevents undue / excesss communication between nodes
+# can drastically speed up .join() operations
+from pyspark.sql.functions import broadcast
+combined_df = df_1.join(broadcast(df_2))
+
+## Configuration options
+# Reading
+spark.conf.get()
+
+# Writing
+spark.conf.set()
+
+# Name of the Spark application instance
+app_name = spark.conf.get('spark.app.name')
+
+# Driver TCP port
+driver_tcp_port = spark.conf.get('spark.driver.port')
+
+# Number of join partitions
+num_partitions = spark.conf.get('spark.sql.shuffle.partitions')
+
+# Show the results
+print("Name: %s" % app_name)
+print("Driver TCP port: %s" % driver_tcp_port)
+print("Number of partitions: %s" % num_partitions)
+
+# Store the number of partitions in variable
+before = departures_df.rdd.getNumPartitions()
+
+# Configure Spark to use 500 partitions
+spark.conf.set('spark.sql.shuffle.partitions', 500)
+
+# Recreate the DataFrame using the departures data file
+departures_df = spark.read.csv('departures.txt.gz').distinct()
+
+# Print the number of partitions for each instance
+print("Partition count before change: %d" % before)
+print("Partition count after change: %d" % departures_df.rdd.getNumPartitions())
+
+# Join the flights_df and aiports_df DataFrames
+normal_df = flights_df.join(airports_df, \
+    flights_df["Destination Airport"] == airports_df["IATA"] )
+
+# Show the query plan
+normal_df.explain()
+
+## NOT FINISHED
+
+######### INTRODUCTION TO USING MONGO DB FOR DATA SCIENCE WITH PYTHON #########################################
+### INTRO
+import requests
+from pymongo import MongoClient
+
+# client connects to "localhost" by default
+client = MongoClient()
+
+# Save a list of names of the databases managed by client
+db_names = client.list_database_names()
+
+# create local 'nobel' db on the fly
+db = client['nobel']
+
+# Save a list of names of the collections managed by the "nobel" database
+nobel_coll_names = client.nobel.list_collection_names()
+
+for _name in ['prizes', 'laureates']:
+	response = requests.get('http://api.nobelprize.org/v1/{}.json'.\
+		format(_name[:-1]))
+	documents = response.json()[_name]
+	db[_name].insert_many(documents)
+
+# can then access as if client was a dict of dbs
+db = client['nobel'] # db = client.nobel
+
+# db is a dict of collections
+prizes_collection = db['prizes']
+
+## count documents in a collection
+# use empty doc {} as a filter
+filter = {}
+
+# count docs
+n_prizes = db.prizes.count_documents(filter)
+n_laureates = db.laureates.count_documents(filter)
+
+# find one doc to inspect
+doc = db.prizes.find_one(filter) #can add specific filter instead
+doc = db.laureates.find_one({'gender': 'female', 'diedCity': 'Paris'})
+doc = db.laureates.find_one({'diedCountry': {'$in' : {'France', 'USA'}} }) #in either
+doc = db.laureates.find_one({'diedCountry': {'$en' : {'France', 'USA'}} }) # not in
+doc = db.laureates.find_one({'diedCountry': {'$gt' : 'France', '$lte' 'USA'}}) #gt: greather than, lte: less than equal
+
+# Filter for laureates born in Austria with non-Austria prize affiliation
+criteria = {'bornCountry': 'Austria', 
+              'prizes.affiliations.country': {"$ne": 'Austria'}}
+
+# Filter for documents without a "born" field
+criteria = {'born': {'$exists': False}}
+
+# Filter for laureates with at least three prizes
+criteria = {"prizes.2": {'$exists': True}}
+
+# Using .distinct()
+db.laureates.distinct('gender')
+
+# to check matches use set()
+assert set(db.prizes.distinct("category")) == set(db.laureates.distinct("prizes.category"))
+
+# 
+db.laureates.distinct('prizes.category') # get distinct categories
+list(db.laureates.find({'prizes.share': '4'})) # find matches
+db.laureates.distinct(
+	'prizes.category', {'prizes.share': '4'} # both at once
+	)
+
+# In which countries have USA-born laureates had affiliations for their prizes?
+db.laureates.distinct(
+	'prizes.category', {'prizes.share': '4'} # both at once
+	)
+
+### EXAMPLE
+# Save a filter for prize documents with three or more laureates
+criteria = {"laureates.2": {'$exists': True}}
+
+# Save the set of distinct prize categories in documents satisfying the criteria
+triple_play_categories = set(db.prizes.distinct('category', criteria))
+
+# Confirm literature as the only category not satisfying the criteria.
+assert set(db.prizes.distinct('category')) - triple_play_categories == {'literature'}
+
+## Array fiels and operators
+db.laureates.count_documents({'prizes.category': 'physics'})
+db.laureates.count_documents({'prizes.category': {'$ne': 'physics'}})
+db.laureates.count_documents({'prizes.category': {'$in': ['physics', 'chemistry']}})
+db.laureates.count_documents({'prizes.category': {'$nin': ['physics', 'chemistry']}}) # not in operator
+
+# careful: below is exact match, prizes with ONLY info about category and share, and info == filter
+db.laureates.count_documents({'prizes': {'category': 'physics', 'share': '1'}})
+
+# below looks for prizes w/ physics in category -- could return different categories (?)
+db.laureates.count_documents({'prizes': {'category': 'physics', 'share': '1'}})
+
+# use $elemMatch
+db.laureates.count_documents(
+	{'prizes': 
+		{'$elemMatch': 
+			{'category': 'physics', 
+			 'share': '1',
+			 'year': {'$lt': '1945'}
+			 }
+		}
+	})
+
+### EXAMPLE
+# number of laureates who won a shared prize in physics before 1945
+db.laureates.count_documents({
+    "prizes": {"$elemMatch": {
+        "category": "physics",
+        "share": {"$ne": "1"},
+        "year": {"$lt": "1945"}}}})
+
+# Save a filter for organization laureates with prizes won before 1945
+before = {
+    'gender': 'org',
+    'prizes.year': {'$lt': "1945"},
+    }
+
+# Save a filter for organization laureates with prizes won in or after 1945
+in_or_after = {
+    'gender': 'org',
+    'prizes.year': {'$gte': "1945"},
+    }
+
+n_before = db.laureates.count_documents(before)
+n_in_or_after = db.laureates.count_documents(in_or_after)
+ratio = n_in_or_after / (n_in_or_after + n_before)
+print(ratio)
+
+# Find matches with $regex
+db.laureates.distinct('bornCountry',
+	{'bornCountry': {'$regex': 'Poland'}})
+
+# case insensitive matches
+db.laureates.distinct('bornCountry',
+	{'bornCountry': {'$regex': 'poland',
+					 '$options': 'i'}})
+
+## more regex
+from bson.regex import Regex
+
+# starting with Poland
+db.laureates.distinct('bornCountry',
+	{'bornCountry': Regex('^Poland')}
+	)
+
+# escaping characters
+db.laureates.distinct('bornCountry',
+	{'bornCountry': Regex('^Poland \(now')}
+	)
+
+# match end
+db.laureates.distinct('bornCountry',
+	{'bornCountry': Regex('now Poland \)')}
+	)
+
+### Projection
+## select columns
+# 1 to select, 0 to not select
+
+docs = db.laureates.find(
+	filter={},
+	projection = {'prizes.affiliations': 1,
+				  '_id': 0})
+# returns cursor type
+# need to convert to a list
+list(docs)
+
+## dealing with missing fields
+# if NaN, returns docs w/o fields
+docs = db.laureates.find(
+	filter={'gender': 'org'},
+	projection = ['bornCountry', 'firstname'])
+# won't return bornCountry bc field doenst exist for orgs
+
+## Simple aggregation
+# find all prizes awarded
+docs = db.laureates.find({}, ['prizes'])
+
+n_prizes = 0
+
+for doc in :
+	# count number of prizes in each doc
+	n_prizes += len(doc['prizes'])
+
+print(n_prizes)
+
+# or... use comprehension
+sum([len(doc['prizes']) for doc in docs])
+
+## Sorting
+# in python
+from operator import itemgetter
+
+docs = sorted(docs, key = itemgetter('year')) # reverse = True
+print([docs['year'] for doc in docs])
+
+# with mongoDB
+cursor = db.prizes.find({'category': 'physics'},
+						['year'],
+						sort = [('year', 1)]) # ascending year
+
+# more detailed
+cursor = db.prizes.find({'category': 'physics'},
+						['category', 'year'],
+						sort = [('year', 1), 
+								['category', -1]])
+print('{year} {category}'.format(**doc))
+
+# ex
+# find physics prizes, project year and name, and sort by year
+docs = db.prizes.find(
+           filter= {"category": "physics"}, 
+           projection= ["year", "laureates.firstname", "laureates.surname"], 
+           sort= [("year", 1)])
+
+## Indexes
+# Adding a single-field index
+db.prizes.create_index([('year', 1)]) # 1: ascending, -1 descending
