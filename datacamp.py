@@ -3556,6 +3556,104 @@ docs = db.prizes.find(
            projection= ["year", "laureates.firstname", "laureates.surname"], 
            sort= [("year", 1)])
 
-## Indexes
+### Indexes
+## improve query speed
 # Adding a single-field index
 db.prizes.create_index([('year', 1)]) # 1: ascending, -1 descending
+
+# Adding compound index
+db.prizes.create_index([('category', 1), ('year', 1)])
+
+# Get information on index
+db.laureates.index_information()
+
+### Limits
+for doc in db.prizes.find({'laureates.share': 3}, limit = 3):
+	print('{year} {caregory}'.format(**doc))
+
+# Can chain methods to cursor
+for doc in db.prizes.find({'laureates.share': 3}).limit(3):
+	print('{year} {caregory}'.format(**doc))
+
+for doc in db.prizes.find({'laureates.share': 3}).limit(3).sort("year", 1):
+	print('{year} {caregory}'.format(**doc))
+
+### EXAMPLE
+from pprint import pprint
+
+# Fetch prizes with quarter-share laureate(s)
+filter_ = {"laureates.share": "4"}
+
+# Save the list of field names
+projection = ['year', 'category', "laureates.motivation"]
+
+# Save a cursor to yield the first five prizes
+cursor = db.prizes.find(filter_, projection).sort('year').limit(5)
+pprint(list(cursor))
+
+### Aggregation
+## selecting data
+# query as we've been doing it
+cursor = db.laureates.find(
+	filter = {'bornCountry': 'USA'},
+	projection = {'prizes.year': 1},
+	limit = 3
+	)
+
+# using agg
+cursor = db.laureates.aggregate([
+	{'$match': {'bornCountry': 'USA'}},
+	{'$project': {'prizes.year' : 1}},
+	{'$limit': 3}
+	])
+
+## counting data
+# old way
+list(db.laureates.aggregate([
+	{'$match', {'bornCountry': 'USA'}},
+	{'$count': 'n-USA-born-laurestes'}
+	]))
+
+db.laureates.count_documents({'bornCountry': 'USA'})
+
+## EXAMPLE
+# original query
+cursor = (db.laureates.find(
+    {"gender": {"$ne": "org"}},
+    ["bornCountry", "prizes.affiliations.country"]
+).limit(3))
+
+# rewriting with agg pipeline
+pipeline = [
+    {'$match': {"gender": {"$ne": "org"}}},
+    {"$project": {"bornCountry": 1, "prizes.affiliations.country": 1}},
+    {"$limit": 3}
+]
+
+for doc in db.laureates.aggregate(pipeline):
+    print("{bornCountry}: {prizes}".format(**doc))
+
+    ## EXAMPLE
+    from collections import OrderedDict
+from itertools import groupby
+from operator import itemgetter
+
+original_categories = set(db.prizes.distinct("category", {"year": "1901"}))
+
+# Save an pipeline to collect original-category prizes
+pipeline = [
+    {'$match': {'category': {'$in': list(original_categories)}}},
+    {"$project": {'year': 1, 'category': 1}},
+    {'$sort': OrderedDict([('year', -1)])}
+]
+cursor = db.prizes.aggregate(pipeline)
+for key, group in groupby(cursor, key=itemgetter("year")):
+    missing = original_categories - {doc["category"] for doc in group}
+    if missing:
+        print("{year}: {missing}".format(year=key, missing=", ".join(sorted(missing))))
+
+## continue here
+
+
+### WORKING WITH THE CLASS SYSTEM IN PYTHON ################################
+f"a" #prints the string a with {b} being able to ref the variable b
