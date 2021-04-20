@@ -3657,3 +3657,332 @@ for key, group in groupby(cursor, key=itemgetter("year")):
 
 ### WORKING WITH THE CLASS SYSTEM IN PYTHON ################################
 f"a" #prints the string a with {b} being able to ref the variable b
+
+class MyClass:
+    MAX_POSITION = 10 # will be shared among all instances of a class
+
+    @classmethod # class method: can't share instance-level data
+    def my_method(cls, args, ...): # cls refers to class
+        pass
+
+    @classmethod # can be used to create objects
+    def from_file(cls, filename):
+        with open(filename, "r") as f:
+            name = f.readline()
+        return cls(name)
+
+    def move(self, steps):
+        if self.position + steps < Player.MAX_POSITION:
+           self.position = self.position + steps 
+        else:
+           self.position = Player.MAX_POSITION
+
+# Even though MAX_POSITION is shared across instances, assigning a new
+# value to one instance of the class does not change the value of other
+# instances or the class in general.
+# TIn fact, Python created a new instance attribute in p1, also called it MAX_SPEED, 
+# and assigned 7 to it, without touching the class attribute.
+
+### IMPLEMENTING CLASS INHERITANCE
+def Parent():
+    def __init__(self):
+        pass
+
+    def somefunc(self):
+        pass
+
+def Child(Parent):
+    pass
+
+## ADDING FUNCTIONALITY
+class SavingsAccount(BankAccount):
+    def __init__(self, balance, interest_rate):
+        BankAccount.__init__(self, balance)
+        self.interest_rate = interest_rate
+
+    def compute_interest(self, n_periods = 1):
+        return self.balance * ( (1 + self.interest_rate) ** n_periods - 1)
+
+
+class CheckingAccount(BankAccount):
+    def __init__(self, balance, limit):
+        BankAccount.__init__(self, content)
+        self.limit = limit
+
+    def deposit(self, amount):
+        self.balance += amount
+
+    def withdraw(self, amount, fee = 0):
+        if fee <= self.limit:
+            BankAccount.withdraw(self, amount - fee)
+        else:
+            BankAccount.withdraw(self, amount - self.limit)
+
+## ANOTHER EXAMPLE
+import pandas as pd
+
+class LoggedDF(pd.DataFrame):
+  
+  def __init__(self, *args, **kwargs):
+    pd.DataFrame.__init__(self, *args, **kwargs)
+    self.created_at = datetime.today()
+    
+  def to_csv(self, *args, **kwargs):
+    temp = self.copy()
+    temp["created_at"] = self.created_at
+    pd.DataFrame.to_csv(temp, *args, **kwargs)
+    
+
+### OPERATOR OVERLOADING: 
+## COMPARISON
+customer1 = Customer("Maryam", 3000, 123)
+customer2 = Customer("Maryam", 3000, 123)
+customer1 == customer2 # returns FALSE
+# this is because they point to different chunks of memory
+# but this can be changed: we can compare numpy arrays
+# we can use __eq__() to define what happens when 2 objects
+# of a class are compared with ==
+# __eq__() takes self and other and returns TRUE/FALSE
+
+def Customer:
+    def __init__(self, id, name):
+        self.id, self.name = id, name
+
+    def __eq__(self, other):
+        matching_id_name = (self.id == other.id) and (self.name == other.name)
+        matching_class = isinstance(self, Customer) == isinstance(other, Customer)
+        return matching_id_name and matching_class
+
+# other comparison operators: 
+# __ne__() (!=) # by default is not __eq__
+# __ge__() (>=)
+# __le__() (<=)
+# __gt__() (>)
+# __lt__() (<)
+# __hash__() to use objects as dictionary keys and in sets
+
+## STRING REPRESENTATION
+# __str__() is executed when print(obj) and str(obj)
+## informal, end user representation
+# __repr__() is executed when repr(obj) and printing in console
+## formal, for developer, is REPRODUCIBLE i.e., shows how to reproduce object
+## fallback for print when str() is not defined
+
+class Employee:
+    def __init__(self, name, salary=30000):
+        self.name, self.salary = name, salary
+      
+
+    def __str__(self):
+        s = "Employee name: {name}\nEmployee salary: {salary}".format(name=self.name, salary=self.salary)      
+        return s
+    
+    def __repr__(self):
+        s = f"Employee(\'{self.name}\', {self.salary})"   
+        return s
+
+emp1 = Employee("Amar Howard", 30000)
+print(repr(emp1))
+emp2 = Employee("Carolyn Ramirez", 35000)
+print(repr(emp2))
+
+## EXCEPTION HANDLING
+try:
+    # somethign
+except ExceptionName:
+    # something else
+finally:
+    # something else
+
+# can raise errors with 
+raise ExceptionName
+
+## Example
+class BalanceError(Exception): pass
+
+class Customer:
+    def __init__(self, name, balance):
+        if balance < 0:
+            raise BalanceError("Balance has to be positive.")
+        else:
+            self.name, self.balance = name, balance
+
+# Note
+# It's better to list the except blocks in the increasing order of 
+# specificity, i.e. children before parents, otherwise the child exception 
+# will be called in the parent except block.
+
+### DESIGNING FOR INHERITANCE AND POLYMORPHISM
+# Liskov substitution principle
+# Base class should be interchangeable with any of its subclasses without
+# altering any properties of the program
+# -> wherever BankAccount works, CheckingAccount should work as well
+
+# This should be true both SYNTATICALLY and SEMANTICALLY
+# SYNTATICALLY: function signatures are compatible, same argument + returned values
+# SEMANTICALLY: the state of the object and program remains consistent, e.g., no additional exceptions
+
+# SYNTATCTIC INCOMPATIBILITY
+# BankAccount.withdraw() requires 1 parameter but CheckingAccount.withdraw()
+# requires 2 - UNLESS CheckingAccount.withdraw's additional parameter has a default
+# value
+
+# SEMANTICALLY
+# BankAccount.withdraw() accepts any amount but CheckingAccount.withdraw() has
+# a minimum
+# OR BankAccount.withdraw() returns an error for negative balances
+# but not CheckingAccount.withdraw()
+
+## MANAGING DATA ACCESS
+# NAMING CONVENTION
+# single leading _ = "internal" -> not part of a public API, "don't touch this"
+
+# double leading __ = "private" -> not inherited
+
+## CHANGING ATTRIBUTE VALUES
+# @property decorator, used on a method whose name is the EXACT SAME as the
+# restricted attribute and returns the internal attribute
+
+# @salary.setter used on the method that implements validation and sets the 
+# attribute
+
+# if no @attr.setter method is used, the property is READ ONLY
+# @attr.getter: used for the method called when the property value is retrieved
+# @attr.deleter: used for the method called when the property is deleted
+
+class Employer:
+    def __init__(self, name, new_salary):
+        self._salary = new_salary
+
+    @property
+    def salary(self):
+        return self._salary
+    
+    @salary.setter
+    def salary(self, new_salary):
+        if new_salary < 0:
+            raise ValueError("Invalid salary!")
+        self._salary = new_salary
+
+#### INTRODUCTION TO GIT ####
+git log # full history
+git log filepath # history of a specific file
+git log -3 filepath # shows last 3 commits for filepath
+
+git commit # without -m lets you write a longer message
+git commit -m "informative message here"
+
+# How does Git store information?
+# 1. commit: metadata on author, time of commit, etc
+# 2. tree: tracks the names and locations in the repository when that commit happened
+# 3. blob: a compressed snapshot of the contents of the file when the commit happened
+
+# Git gives every commit a hash
+# Hashes are what enable Git to share data efficiently between repositories. 
+# If two files are the same, their hashes are guaranteed to be the same. 
+# Similarly, if two commits contain the same files and have the same 
+# ancestors, their hashes will be the same as well. Git can therefore tell 
+# what information needs to be saved where by comparing hashes rather than 
+# comparing entire files.
+
+git show 0da2f7 # shows the commit + git diff for commit with hash starting in 0da2f7
+
+# A hash is like an absolute path: it identifies a specific commit. 
+# Another way to identify a commit is to use the equivalent of a relative 
+# path, like HEAD, which always refers to the most recent commit. 
+# HEAD~1 then refers to the commit before it and HEAD~2 to the commit 
+# before that, and so on.
+
+git annotate filepath # shows who made the last change to each line of a file and when.
+
+git diff abc123..def456 # shows the differences between the commits abc123 and def456
+
+# use .gitignore to stop tracking files you don't care about
+# can use wildcards in gitignore
+# e.g., if .gitignore contains
+build
+*.mpl
+# gitignore will ignore any file or directory called build and all files ending in .mpl
+
+git clean -n # shows you a list of untracked files that are in the repository
+git clean -f # will then delete those files
+
+git config --list # to change default settings
+--system # for every use on this computer
+--global # for every one of your projects
+--local # for one specific project
+# local overrides global which overrides system
+
+#git config --global setting value # to change config on computer
+git config --global user.name i.ajimi # can also add user.email
+
+git reset HEAD # unstage most recent additions
+git checkout -- . # will discard changes that have not yet been staged in the current directory
+
+# using one after the other can remove changes to a "staged" file
+git reset data/northern.csv
+git checkout -- data/northern.csv
+
+git checkout 2242bd report.txt # replaces current version of file with older commit
+# commit hash replaces -- from previous example
+
+git reset HEAD # removes all files from staging area
+git checkout -- . # restores all files to previous stage
+
+git branch # see all branches
+git diff branch1..branch2 # shows difference btw 2 branches
+git checkout branch1 # to switch to branch 1, can only do this if all changes are committed
+git checkout -b branch2 # creates and swtiches to branch 2
+git merge source destination # merge branch
+
+# git will alert you when conflict
+# resolve conflict via editor then re-add file and commit
+
+git init projectname # create new project in wd
+git init # convert directory to repo
+
+git clone URL # clone repository
+git clone existingproject newproject
+# git remembers where the original repository was - stors a REMOTE in the new 
+# repository's configuration
+# if cloning from URL, repo from there is the remote
+
+git remote # shows remote name
+git remote -v # shows remote URLs
+
+# when cloning a repo, git automatically creates a remote called origin
+git remote add remotename URL # add new remote
+git remote rm remotename # remove remote
+
+# you can PULL changes from remotes and PUSH changes to them
+git pull remotename branchname # gets everything in branch of remote
+git pull origin master
+git push remotename branchname # pushes your commits to the branch of remote
+
+# you can't PUSH if your branch is out of data, need to pull before you push
+
+
+
+#### CREATING ROBUST WORKFLOWS IN PYTHON ####
+## Adding Type hints for arguments & return value
+def double(n: int) -> int:
+    return n * 2
+
+## Docstrings
+'''Module Docstring'''
+def double(n: int) -> int:
+    ''' Function Docstring'''
+    return n * 2
+
+class DoubleN:
+    '''Class Docstring'''
+    def __init__(self, n: float):
+        '''Method Docstring'''
+        self.n_doubled = n * 2
+
+## Creating notebooks
+from nbformat.v4 import (new_notebook, new_code_cell)
+
+nb = new_notebook()
+nb.cells.append(new_code_cell('1+1'))
+nb.cells
